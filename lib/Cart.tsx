@@ -9,6 +9,14 @@ type Ctx={menu:Item[];loaded:boolean;cart:Qty;sauces:Record<string,string>;lines
  checkout:(o:{phone:string;pickup:string;notes:string},onSent?:()=>void)=>Promise<string|null>};
 const C=createContext<Ctx|null>(null);
 export const useCart=()=>{const c=useContext(C);if(!c)throw new Error('CartProvider missing');return c};
+// crypto.randomUUID only exists on https/localhost pages, so fall back for plain-http testing on a phone
+const uid=()=>{const c=globalThis.crypto;
+ if(typeof c?.randomUUID==='function')return c.randomUUID();
+ const b=new Uint8Array(16);
+ if(c?.getRandomValues)c.getRandomValues(b);else for(let i=0;i<16;i++)b[i]=Math.floor(Math.random()*256);
+ b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;
+ const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');
+ return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`};
 
 export function CartProvider({children,initialMenu=[]}:{children:React.ReactNode;initialMenu?:Item[]}){
  const r=useRouter();
@@ -32,19 +40,24 @@ export function CartProvider({children,initialMenu=[]}:{children:React.ReactNode
  const total=lines.reduce((a,m)=>a+m.price*cart[m.id],0);const count=lines.reduce((a,m)=>a+cart[m.id],0);
  const usual:Qty=Object.fromEntries(Object.entries(last).filter(([id,n])=>n>0&&menu.some(m=>m.id===id&&!m.soldOut)));
 
- async function checkout({phone,pickup,notes}:{phone:string;pickup:string;notes:string},onSent?:()=>void){
+  async function checkout({phone,pickup,notes}:{phone:string;pickup:string;notes:string},onSent?:()=>void){
   setBusy(true);
   try{
    const sig=JSON.stringify(lines.map(m=>[m.id,cart[m.id]]))+phone; // new cart => new idempotency key
-   let key=sessionStorage.getItem('ck');if(!key||sessionStorage.getItem('cksig')!==sig){key=crypto.randomUUID();sessionStorage.setItem('ck',key);sessionStorage.setItem('cksig',sig)}
+   let key:string|null=null;
+   try{key=sessionStorage.getItem('ck');if(!key||sessionStorage.getItem('cksig')!==sig){key=uid();sessionStorage.setItem('ck',key);sessionStorage.setItem('cksig',sig)}}
+   catch{key=key||uid()}
    const sn=lines.filter(m=>sauces[m.id]).map(m=>`${m.name}: ${sauces[m.id]}`).join('; ');
-   const res=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({key,phone,pickup,notes:[sn,notes].filter(Boolean).join(' | '),items:lines.map(m=>({id:m.id,qty:cart[m.id]}))})});
-   const j=await res.json();if(!res.ok)return j.error||'Something went wrong. Try again.';
+   let res:Response;
+   try{res=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({key,phone,pickup,notes:[sn,notes].filter(Boolean).join(' | '),items:lines.map(m=>({id:m.id,qty:cart[m.id]}))})})}
+   catch{return 'No connection. Check your internet and try again.'}
+   const j=await res.json().catch(()=>({}));
+   if(!res.ok)return j.error||'Our server had a problem. Please try again in a moment.';
    onSent?.();await new Promise(x=>setTimeout(x,onSent?3000:0)); // lets the order page finish its animation
-   sessionStorage.removeItem('ck');sessionStorage.removeItem('cksig');
+   try{sessionStorage.removeItem('ck');sessionStorage.removeItem('cksig')}catch{}
    try{localStorage.setItem('last',JSON.stringify(cart));localStorage.setItem('phone',phone)}catch{}
    setLast(cart);setCart({});setSauces({});setOpen(false);r.push('/track/'+j.no);return null;
-  }catch{return 'No connection. Check your internet and try again.'}finally{setBusy(false)}}
-
+  }catch(e){console.error('checkout failed',e);return 'Something went wrong on our side. Please try again.'}finally{setBusy(false)}}
+  
  return <C.Provider value={{menu,loaded,cart,sauces,lines,gone,total,count,usual,open,setOpen,bump,busy,add,dec,setAll:setCart,checkout}}>{children}</C.Provider>;}
