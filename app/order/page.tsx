@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {useCart,kes} from '@/lib/Cart';
 import {Pic,BEST} from '@/components/Dish';
 import {BRAND} from '@/components/config';
@@ -7,6 +7,8 @@ import {BRAND} from '@/components/config';
 const CATS=['All','Chicken','Chips','Shawarma','Burgers','Biryani','Snacks','Drinks','Combos'];
 const QUICK:[string,number][]=[['ASAP',0],['In 15 min',15],['In 30 min',30],['In 45 min',45]];
 const PHONE_OK=/^(\+?254|0)?[17]\d{8}$/;
+const NOTE_MAX=150;
+const IDEAS=['No onions','Extra sauce','Less spicy','Cut in half','Extra napkins']; // EDIT: one-tap notes
 const nairobi=()=>{
  const p=new Intl.DateTimeFormat('en-GB',{hour:'numeric',minute:'numeric',hour12:false,timeZone:'Africa/Nairobi'}).formatToParts(new Date());
  const g=(t:string)=>Number(p.find(x=>x.type===t)?.value);
@@ -14,13 +16,19 @@ const nairobi=()=>{
 };
 const fmt=(m:number)=>{const h=Math.floor(m/60)%24,mm=m%60;return `${h%12||12}:${String(mm).padStart(2,'0')} ${h<12?'am':'pm'}`};
 
+// small text-style buttons (inline so they don't depend on the stylesheet)
+const textBtn:React.CSSProperties={background:'none',border:0,color:'inherit',opacity:.8,cursor:'pointer',textDecoration:'underline',padding:'6px 4px',font:'inherit',fontSize:'.85rem'};
+const xBtn:React.CSSProperties={background:'none',border:0,color:'inherit',opacity:.7,cursor:'pointer',padding:'4px 6px',font:'inherit'};
+
 export default function OrderPage(){
- const {menu,loaded,cart,sauces,lines,gone,total,count,usual,add,dec,setAll,checkout}=useCart();
+ const {menu,loaded,cart,sauces,lines,gone,total,count,usual,add,dec,remove,clear,setAll,checkout}=useCart();
  const [tab,setTab]=useState('All');
  const [mode,setMode]=useState('ASAP');const [slot,setSlot]=useState<number|null>(null);
  const [notes,setNotes]=useState('');const [phone,setPhone]=useState('');const [err,setErr]=useState('');
  const [stage,setStage]=useState<'idle'|'sending'|'sent'>('idle');const [amt,setAmt]=useState(0);
  const [now,setNow]=useState<number|null>(null);
+ const [sure,setSure]=useState(false); // "Clear order" needs a second tap
+ const noteRef=useRef<HTMLTextAreaElement>(null);
 
  useEffect(()=>{try{setPhone(localStorage.getItem('phone')||'')}catch{}},[]);
  useEffect(()=>{setNow(nairobi());const t=setInterval(()=>setNow(nairobi()),30000);return()=>clearInterval(t)},[]);
@@ -29,6 +37,8 @@ export default function OrderPage(){
   const nav=document.querySelector('nav');
   const set=()=>document.documentElement.style.setProperty('--navh',(nav?.offsetHeight||64)+'px');
   set();const ro=new ResizeObserver(set);if(nav)ro.observe(nav);return()=>ro.disconnect()},[]);
+ useEffect(()=>{if(!sure)return;const t=setTimeout(()=>setSure(false),3000);return()=>clearTimeout(t)},[sure]);
+ useEffect(()=>{if(!lines.length)setSure(false)},[lines.length]);
 
  const list=menu.filter(m=>tab==='All'||m.cat===tab);
  const hasUsual=Object.keys(usual).length>0&&count===0;
@@ -47,10 +57,20 @@ export default function OrderPage(){
  const clean=phone.replace(/[\s-]/g,'');const phoneOk=PHONE_OK.test(clean);
  const canPay=stage==='idle'&&lines.length>0&&phoneOk&&(!custom||slotOk);
 
+ // kitchen note: one line only (the kitchen screen splits sauces from notes on " | ")
+ const onNote=(e:React.ChangeEvent<HTMLTextAreaElement>)=>setNotes(e.target.value.replace(/\s*\n+\s*/g,' ').replace(/\s\|\s/g,' / '));
+ const hasIdea=(p:string)=>notes.toLowerCase().includes(p.toLowerCase());
+ const toggleIdea=(p:string)=>setNotes(n=>{
+  const i=n.toLowerCase().indexOf(p.toLowerCase());
+  if(i>=0)return (n.slice(0,i)+n.slice(i+p.length)).replace(/^[\s.,]+/,'').replace(/\s*\.\s*\./g,'.').replace(/\s{2,}/g,' ').trim();
+  const next=n.trim()?`${n.trim().replace(/[.\s]+$/,'')}. ${p}`:p;
+  return next.length>NOTE_MAX?n:next;
+ });
+
  const pay=async()=>{
   if(!canPay)return;
   setErr('');setAmt(total);setStage('sending');
-  const e=await checkout({phone:clean,pickup,notes},()=>setStage('sent'));
+  const e=await checkout({phone:clean,pickup,notes:notes.trim()},()=>setStage('sent'));
   if(e){setStage('idle');setErr(e)}
  };
 
@@ -79,9 +99,15 @@ export default function OrderPage(){
    <div className="od-blk">
     <h2><span>01</span>Your order</h2>
     {!lines.length&&<p className="od-empty">Nothing yet. Add something tasty and it will show up here.</p>}
-    {gone.length>0&&<p role="alert" className="od-warn">Just sold out: {gone.map(m=>m.name).join(', ')}. Left out of your total.</p>}
+    {gone.length>0&&<p role="alert" className="od-warn">Just sold out: {gone.map(m=>m.name).join(', ')}. Left out of your total.
+     <button type="button" style={{...textBtn,marginLeft:6}} onClick={()=>gone.forEach(m=>remove(m.id))}>Remove</button></p>}
     {lines.length>0&&<div className="od-lines">{lines.map(m=><div className="od-line" key={m.id}>
-     <span>{cart[m.id]} × {m.name}{sauces[m.id]&&<em> ({sauces[m.id]})</em>}</span><b>{kes(m.price*cart[m.id])}</b></div>)}</div>}
+     <span>{cart[m.id]} × {m.name}{sauces[m.id]&&<em> ({sauces[m.id]})</em>}</span>
+     <b>{kes(m.price*cart[m.id])}</b>
+     <button type="button" style={xBtn} aria-label={'Remove '+m.name+' from your order'} title="Remove item" onClick={()=>remove(m.id)}>✕</button></div>)}
+     <button type="button" style={{...textBtn,opacity:sure?1:.8,fontWeight:sure?700:400}}
+      onClick={()=>{if(sure){clear();setSure(false)}else setSure(true)}}>{sure?'Tap again to clear everything':'Clear order'}</button>
+    </div>}
     <div className="od-total"><span>Total</span><b>{kes(total)}</b></div>
    </div>
 
@@ -97,10 +123,22 @@ export default function OrderPage(){
 
    <div className="od-blk">
     <h3 className="od-lbl"><span>03</span>Pay with M-Pesa</h3>
-    <input className={'od-field'+(phone&&!phoneOk?' bad':'')} aria-label="M-Pesa number" inputMode="tel" autoComplete="tel" placeholder="M-Pesa number, e.g. 0712 345 678" value={phone} onChange={e=>setPhone(e.target.value)}/>
+
+    <label className="od-flabel" htmlFor="od-phone">M-Pesa number</label>
+    <input id="od-phone" className={'od-field'+(phone&&!phoneOk?' bad':'')} inputMode="tel" autoComplete="tel" enterKeyHint="next"
+     placeholder="e.g. 0712 345 678" value={phone} onChange={e=>setPhone(e.target.value)}
+     onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();noteRef.current?.focus()}}}/>
     {phone&&!phoneOk?<p className="od-hint err">Enter a valid number, e.g. 0712 345 678</p>:<p className="od-hint">We&apos;ll send the payment prompt to this number.</p>}
-    <details className="od-note"><summary>Add a note for the kitchen</summary>
-     <textarea className="od-field" aria-label="Special instructions" rows={2} maxLength={150} placeholder="No onions, extra sauce…" value={notes} onChange={e=>setNotes(e.target.value)}/></details>
+
+    <label className="od-flabel" htmlFor="od-note">Note for the kitchen <small>(optional)</small></label>
+    <textarea id="od-note" ref={noteRef} className="od-field od-notebox" rows={2} maxLength={NOTE_MAX} enterKeyHint="done" autoCapitalize="sentences"
+     placeholder="e.g. No onions. Extra sauce." value={notes} onChange={onNote}
+     onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur()}}}/>
+    <div className="od-ideas" role="group" aria-label="Quick notes">{IDEAS.map(p=>
+     <button key={p} type="button" aria-pressed={hasIdea(p)} className={hasIdea(p)?'on':''}
+      disabled={!hasIdea(p)&&notes.length+p.length+2>NOTE_MAX} onClick={()=>toggleIdea(p)}>{p}</button>)}</div>
+    <p className="od-hint od-count"><span>The kitchen sees this on your order.</span><span>{notes.length}/{NOTE_MAX}</span></p>
+
     <button type="button" className="btn od-go" disabled={!canPay} onClick={pay}>{lines.length?`Pay ${kes(total)} with M-Pesa`:'Pay with M-Pesa'}</button>
     {err&&<p role="alert" className="od-hint err">{err}</p>}
     <p className="od-secure">You&apos;ll confirm with your M-Pesa PIN on your phone.</p>

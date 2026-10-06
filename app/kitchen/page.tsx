@@ -1,5 +1,6 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
+import Logo from '@/components/Logo';
 
 type L={id:string;name:string;qty:number;price:number};
 type O={no:number;status:string;items:L[];total:number;notes:string;pickup:string;receipt?:string;version:number;
@@ -117,7 +118,10 @@ const CSS=`
 .k2 button{font-family:inherit;cursor:pointer}
 .k2 button:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
 .k2-bar{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;border-bottom:1px solid #dde1e7;flex-wrap:wrap}
-.k2-logo{font-family:var(--display),Georgia,serif;font-size:26px;margin-right:auto}
+.k2-brand{display:flex;align-items:center;gap:12px;margin-right:auto}
+.k2-badge{display:grid;place-items:center;background:#000;border-radius:12px;padding:4px;line-height:0}
+.k2-badge.big{border-radius:18px;padding:8px;margin:0 auto 4px}
+.k2-logo{font-family:var(--display),Georgia,serif;font-size:26px}
 .k2-clock{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .k2-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:#eceff3;color:#14181f;border:0;font-size:15px;font-weight:600}
 .k2-pill i{width:10px;height:10px;border-radius:50%;background:#9ca3af}
@@ -176,8 +180,8 @@ const CSS=`
 .k2-toast button{border:0;background:#fff;color:#14181f;border-radius:999px;padding:8px 16px;font-weight:700;font-size:16px}
 .k2-gate{display:grid;place-items:center;padding:20px}
 .k2-gate form{width:min(420px,100%);display:flex;flex-direction:column;gap:14px}
-.k2-gate h1{margin:0;font-family:var(--display),Georgia,serif;font-size:36px}
-.k2-gate p{margin:0;color:#4b5563;font-size:17px;line-height:1.4}
+.k2-gate h1{margin:0;font-family:var(--display),Georgia,serif;font-size:36px;text-align:center}
+.k2-gate p{margin:0;color:#4b5563;font-size:17px;line-height:1.4;text-align:center}
 .k2-gate input{padding:16px;border-radius:12px;border:2px solid #cbd2da;background:#fff;color:#14181f;font-size:18px}
 .k2-gate .k2-err{color:#b91c1c;font-weight:700}
 @media (max-width:899px){
@@ -401,6 +405,7 @@ export default function Kitchen(){
  const fs=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen?.()};
 
  if(!started)return <div className="k2 k2-gate"><style>{CSS}</style><form onSubmit={e=>{e.preventDefault();begin()}}>
+  <span className="k2-badge big"><Logo variant="mark" height={96} href={null} priority/></span>
   <h1>Kitchen display</h1><p>Enter the staff key and tap Start. This also turns on the sound alerts.</p>
   <input type="password" autoComplete="current-password" placeholder="Staff key" value={keyIn} onChange={e=>setKeyIn(e.target.value)}/>
   {authErr&&<p className="k2-err" role="alert">{authErr}</p>}
@@ -417,7 +422,7 @@ export default function Kitchen(){
 
  return <div className="k2"><style>{CSS}</style>
   <div className="k2-bar">
-   <b className="k2-logo">Kitchen</b>
+   <span className="k2-brand"><span className="k2-badge"><Logo variant="mark" height={40} href={null} priority/></span><b className="k2-logo">Kitchen</b></span>
    <span className="k2-clock">{clock(t)}</span>
    <span className={'k2-pill '+cls}><i/>{label}</span>
    {!audioOn&&!muted&&<button type="button" className="k2-pill warn" onClick={unlock}>🔇 Tap to enable sound</button>}

@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';import {usePathname} from 'next/navigation';
 import {useEffect,useState} from 'react';import NavCart from './NavCart';
+import Logo from './Logo';
 export default function Nav({links}:{links:[string,string][]}){
  const path=usePathname();const [open,setOpen]=useState(false);
  useEffect(()=>{setOpen(false)},[path]);
@@ -13,7 +14,10 @@ export default function Nav({links}:{links:[string,string][]}){
    document.documentElement.style.overflow='';document.body.classList.remove('nav-open')}},[open]);
  const on=(h:string)=>h==='/'?path==='/':path.startsWith(h);
  return <nav className="tx-nav" aria-label="Main">
-  <b><Link href="/">Treehouse</Link></b>
+  <b className="tx-brand"><Link href="/" className="tx-brandlink" aria-label="Treehouse, home">
+   <Logo variant="mark" height={56} href={null} priority/>
+   <span className="tx-word">Treehouse</span>
+  </Link></b>
   <div className="tx-links">{links.map(([t,h])=><Link key={h} href={h} aria-current={on(h)?'page':undefined}>{t}</Link>)}</div>
   <NavCart/>
   <button className="tx-burger" aria-label={open?'Close menu':'Open menu'} aria-expanded={open} aria-controls="tx-sheet" onClick={()=>setOpen(!open)}><span/><span/></button>

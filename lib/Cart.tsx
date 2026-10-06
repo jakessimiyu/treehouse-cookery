@@ -5,7 +5,8 @@ export type Item={id:string;name:string;desc:string;price:number;cat:string;emoj
 export const kes=(n:number)=>'KSh '+n.toLocaleString();
 type Qty=Record<string,number>;
 type Ctx={menu:Item[];loaded:boolean;cart:Qty;sauces:Record<string,string>;lines:Item[];gone:Item[];total:number;count:number;usual:Qty;
- open:boolean;setOpen:(b:boolean)=>void;bump:number;busy:boolean;add:(id:string,sauce?:string)=>void;dec:(id:string)=>void;setAll:(c:Qty)=>void;
+ open:boolean;setOpen:(b:boolean)=>void;bump:number;busy:boolean;add:(id:string,sauce?:string)=>void;dec:(id:string)=>void;
+ remove:(id:string)=>void;clear:()=>void;setAll:(c:Qty)=>void;
  checkout:(o:{phone:string;pickup:string;notes:string},onSent?:()=>void)=>Promise<string|null>};
 const C=createContext<Ctx|null>(null);
 export const useCart=()=>{const c=useContext(C);if(!c)throw new Error('CartProvider missing');return c};
@@ -35,6 +36,13 @@ export function CartProvider({children,initialMenu=[]}:{children:React.ReactNode
 
  const add=(id:string,sauce?:string)=>{setCart(c=>({...c,[id]:(c[id]||0)+1}));if(sauce)setSauces(s=>({...s,[id]:sauce}));setBump(b=>b+1);navigator.vibrate?.(12)};
  const dec=(id:string)=>setCart(c=>({...c,[id]:Math.max(0,(c[id]||0)-1)}));
+ // take one item out completely (quantity and its sauce choice)
+ const remove=(id:string)=>{
+  setCart(c=>{const n={...c};delete n[id];return n});
+  setSauces(s=>{const n={...s};delete n[id];return n});
+ };
+ // empty the whole cart so the customer can start again
+ const clear=()=>{setCart({});setSauces({})};
  const lines=menu.filter(m=>cart[m.id]>0&&!m.soldOut);
  const gone=menu.filter(m=>cart[m.id]>0&&m.soldOut);
  const total=lines.reduce((a,m)=>a+m.price*cart[m.id],0);const count=lines.reduce((a,m)=>a+cart[m.id],0);
@@ -59,5 +67,5 @@ export function CartProvider({children,initialMenu=[]}:{children:React.ReactNode
    try{localStorage.setItem('last',JSON.stringify(cart));localStorage.setItem('phone',phone)}catch{}
    setLast(cart);setCart({});setSauces({});setOpen(false);r.push('/track/'+j.no);return null;
   }catch(e){console.error('checkout failed',e);return 'Something went wrong on our side. Please try again.'}finally{setBusy(false)}}
-  
- return <C.Provider value={{menu,loaded,cart,sauces,lines,gone,total,count,usual,open,setOpen,bump,busy,add,dec,setAll:setCart,checkout}}>{children}</C.Provider>;}
+
+ return <C.Provider value={{menu,loaded,cart,sauces,lines,gone,total,count,usual,open,setOpen,bump,busy,add,dec,remove,clear,setAll:setCart,checkout}}>{children}</C.Provider>;}

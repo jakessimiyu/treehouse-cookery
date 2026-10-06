@@ -5,8 +5,8 @@ const TABS:[string,string,string][]=[
  ['Home','/','M3 11l9-8 9 8M5 10v10h14V10'],
  ['Menu','/menu','M4 6h16M4 12h16M4 18h10'],
  ['Order','/order','M6 8h12l-1 12H7L6 8zM9 8a3 3 0 016 0'],
- ['Reserve','/reserve','M4 6h16v14H4zM4 10h16M8 3v4M16 3v4']];
-const MORE:[string,string][]=[['Catering','/catering'],['Our Story','/story'],['Visit','/visit']];
+ ['Catering','/catering','M3 18h18M5 18a7 7 0 0114 0M12 8V6']];
+const MORE:[string,string][]=[['Our Story','/story'],['Visit','/visit']];
 export default function BottomNav(){
  const path=usePathname()||'/';const [more,setMore]=useState(false);
  useEffect(()=>setMore(false),[path]);
