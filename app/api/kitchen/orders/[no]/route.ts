@@ -27,7 +27,7 @@ async function change(r:Request,{params}:{params:Promise<{no:string}>}){
  try{
   const res=accept?await acceptOrder(no):await transition(no,status as Status);
   if(res.ok)return Response.json({ok:true,order:res.order});
-  return Response.json({ok:false,error:res.error,order:res.order},{status:res.error==='Order not found'?404:409});
+  return Response.json({ok:false,error:res.error,order:'order' in res?res.order:undefined},{status:res.error==='Order not found'?404:409});
  }catch(e){
   console.error('kitchen update failed',e);
   return Response.json({ok:false,error:'Temporarily unavailable'},{status:503});

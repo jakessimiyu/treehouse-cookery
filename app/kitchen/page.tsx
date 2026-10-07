@@ -127,6 +127,20 @@ const CSS=`
 .k2-pill i{width:10px;height:10px;border-radius:50%;background:#9ca3af}
 .k2-pill.live i{background:#16a34a}.k2-pill.retry i{background:#f59e0b}.k2-pill.down{background:#fee2e2;color:#991b1b}.k2-pill.down i{background:#dc2626}
 .k2-pill.warn{background:#fef3c7;color:#92400e}
+.k2-shop{flex:none;background:#fff;border-bottom:1px solid #dde1e7;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.k2-shop-now{font-size:16px;color:#4b5563}.k2-shop-now b{color:#14181f}
+.k2-shop-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.k2-seg{min-height:56px;border:2px solid #cbd2da;border-radius:12px;background:#fff;color:#14181f;font-size:17px;font-weight:700;padding:8px}
+.k2-seg.on{background:#14181f;border-color:#14181f;color:#fff}
+.k2-seg.on.bad{background:#dc2626;border-color:#dc2626}
+.k2-shop-note{padding:12px;border-radius:10px;border:2px solid #cbd2da;font-size:16px;background:#fff;color:#14181f}
+.k2-shop-row{display:flex;gap:8px}
+.k2-shop-row .k2-shop-note{flex:1 1 auto}
+.k2-shop-save{flex:none;min-height:52px;border:0;border-radius:10px;background:#14181f;color:#fff;font-size:16px;font-weight:700;padding:0 22px}
+.k2-shop-save:disabled{opacity:.4}
+.k2-shop-hint{color:#6b7482;font-size:14px}
+/* stop the site's global section styles from adding padding and uneven widths to the board */
+.k2 section.k2-col{padding:0 !important;margin:0 !important;width:auto !important;max-width:none !important;min-width:0}
 .k2-off{flex:none;background:#dc2626;color:#fff;padding:12px 16px;font-weight:700;font-size:17px;text-align:center}
 .k2-alert{flex:none;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;padding:14px 16px;background:#dc2626;color:#fff;animation:k2p 1.4s ease-in-out infinite}
 .k2-alert b{font-size:26px}.k2-alert span{font-size:22px;font-weight:700}
@@ -194,6 +208,7 @@ const CSS=`
  .k2-col{display:none;flex:1 1 0;height:auto}.k2-col.on{display:flex}
  .k2-ch2{display:none}
  .k2-no{font-size:36px}
+ .k2-shop-btns{grid-template-columns:1fr}
 }
 `;
 
@@ -208,6 +223,8 @@ export default function Kitchen(){
  const ctx=useRef<AudioContext|null>(null),tt=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
  const chimed=useRef<Set<number>>(new Set()),seenU=useRef<Set<number>|null>(null);
  const mapRef=useRef(map);mapRef.current=map;
+ const [shop,setShop]=useState<{mode:'auto'|'open'|'closed';note:string;open:boolean;text:string}|null>(null);
+ const [shopOpen,setShopOpen]=useState(false);const [shopNote,setShopNote]=useState('');
 
  useEffect(()=>{try{setKeyIn(localStorage.getItem('sk')||'')}catch{}},[]);
  const flash=useCallback((text:string,undo?:()=>void)=>{
@@ -301,6 +318,23 @@ export default function Kitchen(){
   return()=>{dead=true;document.removeEventListener('visibilitychange',v);lock?.release().catch(()=>{})};
  },[started]);
 
+ // ---- shop open/closed (shown on the website hero and footer) ----
+ const loadShop=useCallback(async()=>{
+  try{const r=await fetch('/api/shop',{cache:'no-store'});const j=await r.json();if(typeof j?.open==='boolean')setShop(j)}catch{}
+ },[]);
+ useEffect(()=>{
+  if(!started)return;
+  loadShop();const i=setInterval(()=>{if(!document.hidden)loadShop()},15000);
+  return()=>clearInterval(i);
+ },[started,loadShop]);
+  const saveShop=async(mode:'auto'|'open'|'closed',note:string=shopNote)=>{
+  try{
+   const r=await fetch('/api/shop',{method:'POST',headers:{'x-staff-key':key,'Content-Type':'application/json'},body:JSON.stringify({mode,note:note.trim()})});
+   const j=await r.json().catch(()=>({}));
+   if(r.ok&&typeof j?.open==='boolean'){setShop(j);setShopNote(j.note||'');flash(`Website now shows: ${j.text}`)}
+   else flash('Could not change the shop status. Nothing was changed.');
+  }catch{flash('No connection. The shop status was NOT changed.')}
+ };
  // ---- derived view ----
  const t=now+offset.current;
  const orders=Object.values(map).map(x=>x.o);
@@ -425,10 +459,23 @@ export default function Kitchen(){
    <span className="k2-brand"><span className="k2-badge"><Logo variant="mark" height={40} href={null} priority/></span><b className="k2-logo">Kitchen</b></span>
    <span className="k2-clock">{clock(t)}</span>
    <span className={'k2-pill '+cls}><i/>{label}</span>
+   <button type="button" className={'k2-pill '+(shop?(shop.open?'live':'down'):'')} onClick={()=>{setShopNote(shop?.note||'');setShopOpen(o=>!o)}} aria-expanded={shopOpen}><i/>{shop?(shop.open?'Shop open':'Shop closed'):'Shop'}</button>
    {!audioOn&&!muted&&<button type="button" className="k2-pill warn" onClick={unlock}>🔇 Tap to enable sound</button>}
    <button type="button" className="k2-pill" onClick={()=>setMuted(m=>!m)}>{muted?'🔇 Sound off':'🔔 Sound on'}</button>
    <button type="button" className="k2-pill" onClick={fs} aria-label="Toggle full screen">⛶</button>
   </div>
+    {shopOpen&&<form className="k2-shop" role="region" aria-label="Shop status" onSubmit={e=>{e.preventDefault();saveShop(shop?.mode||'auto')}}>
+   <div className="k2-shop-now">The website shows: <b>{shop?shop.text:'…'}</b></div>
+   <div className="k2-shop-btns">
+    {([['auto','Follow opening hours'],['open','Open now'],['closed','Closed']] as const).map(([m,l])=>
+     <button key={m} type="button" className={'k2-seg'+(shop?.mode===m?' on':'')+(m==='closed'?' bad':'')} onClick={()=>saveShop(m)}>{l}</button>)}
+   </div>
+   <div className="k2-shop-row">
+    <input className="k2-shop-note" maxLength={60} placeholder="Note shown when closed, e.g. Back at 3pm" value={shopNote} onChange={e=>setShopNote(e.target.value)}/>
+    <button type="submit" className="k2-shop-save" disabled={shopNote.trim()===(shop?.note||'')}>Save note</button>
+   </div>
+   <small className="k2-shop-hint">The note only shows on the website while <b>Closed</b> is selected. Leave it empty and save to remove it.</small>
+  </form>} 
   {offline&&<div className="k2-off" role="alert">Offline. New orders may be missing. Check the internet; everything syncs when it returns.</div>}
   {hasNew&&<div className="k2-alert" role="alert">
    <b>{oldest>=60000?`Unaccepted for ${Math.floor(oldest/60000)} min`:`New order${newCount>1?'s':''}`}</b>

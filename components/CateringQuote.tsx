@@ -1,121 +1,176 @@
 'use client';
-import {useEffect,useRef,useState} from 'react';
-import {today,addDays} from '@/lib/dates';import {BRAND} from '@/components/config';
-import {PACKAGES,ADDONS,EVENT_TYPES,TIMES,DIETARY,PRESETS,MIN_GUESTS,MAX_GUESTS,FULFIL,estimate,kes} from '@/lib/catering';
-const STEPS=['Your event','Menu & extras','Your details'];
-const long=(d:string)=>d?new Date(d+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}):'-';
-const tog=(l:string[],x:string)=>l.includes(x)?l.filter(y=>y!==x):[...l,x];
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {ADDONS,DIETARY,EVENT_TYPES,FULFIL,MAX_GUESTS,MIN_GUESTS,PACKAGES,PRESETS,TIMES,WA_NUMBER,estimate,kes} from '@/lib/catering';
+
+const LABELS=['Your event','Food and extras','Your details'];
+const toggle=(list:string[],v:string)=>list.includes(v)?list.filter(x=>x!==v):[...list,v];
+const niceDate=(d:string)=>d?new Date(d+'T00:00').toLocaleDateString('en-KE',{weekday:'short',day:'numeric',month:'short'}):'';
 
 export default function CateringQuote(){
- const [f,setF]=useState({eventType:'',date:'',time:'',guests:30,fulfilment:'Delivery + setup',venue:'',pkg:'advise',addons:[] as string[],dietary:[] as string[],notes:'',name:'',phone:'',company:'',email:'',website:''});
- const [min,setMin]=useState('');const [step,setStep]=useState(0);const [dir,setDir]=useState(1);const [shake,setShake]=useState(false);
- const [busy,setBusy]=useState(false);const [err,setErr]=useState('');const [ref,setRef]=useState('');const top=useRef<HTMLDivElement>(null);
- const set=<K extends keyof typeof f>(k:K,v:(typeof f)[K])=>setF(x=>({...x,[k]:v}));
- useEffect(()=>{setMin(addDays(today(),2));
-  try{const n=localStorage.getItem('guestName'),p=localStorage.getItem('phone');if(n||p)setF(x=>({...x,name:n||x.name,phone:p||x.phone}))}catch{}
-    const on=(e:Event)=>{const id=(e as CustomEvent<string>).detail;if(PACKAGES.some(p=>p.id===id))setF(x=>({...x,pkg:id}))};
-  const onEv=(e:Event)=>{const t=(e as CustomEvent<string>).detail;if(EVENT_TYPES.includes(t))setF(x=>({...x,eventType:t}))};
-  addEventListener('catering:select-package',on);addEventListener('catering:select-event',onEv);
-  return()=>{removeEventListener('catering:select-package',on);removeEventListener('catering:select-event',onEv)}},[]);
- const guests=Math.max(0,Math.min(MAX_GUESTS,f.guests||0));
- const est=estimate(f.pkg,guests,f.addons);const pkg=PACKAGES.find(p=>p.id===f.pkg);
- const bad=(m:string)=>{setErr(m);setShake(true);setTimeout(()=>setShake(false),400)};
- const go=(n:number)=>{setDir(n>step?1:-1);setStep(n);setErr('');top.current?.scrollIntoView({behavior:'smooth',block:'start'})};
- function next(){setErr('');
-  if(step===0){const m=[];if(!f.eventType)m.push('event type');if(!f.date)m.push('date');if(guests<MIN_GUESTS)m.push(`at least ${MIN_GUESTS} guests`);
-   if(f.fulfilment!=='Collection'&&!f.venue.trim())m.push('delivery address');if(m.length)return bad('Please add: '+m.join(', ')+'.')}
-  if(step===2){if(f.name.trim().length<2)return bad('Please enter your name.');
-   if(!/^(?:\+?254|0)[17]\d{8}$/.test(f.phone.replace(/[\s-]/g,'')))return bad('Enter a valid Kenyan number, e.g. 0712 345 678.');
-   if(f.email&&!/^\S+@\S+\.\S+$/.test(f.email))return bad('That email address looks wrong.');return submit()}
-  go(step+1)}
- async function submit(){setBusy(true);
-  const extras=[f.time&&`Time: ${f.time}`,f.addons.length&&'Add-ons: '+f.addons.map(id=>ADDONS.find(a=>a.id===id)?.label).join(', '),
-   f.dietary.length&&'Dietary: '+f.dietary.join(', '),f.notes.trim()].filter(Boolean).join(' | ');
-  try{const r=await fetch('/api/leads/catering',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    eventType:f.eventType,date:f.date,guests,fulfilment:f.fulfilment,venue:f.venue,interest:pkg?pkg.name:'Not sure yet',
-    budget:est?'Est. '+kes(est.total):'',company:f.company,name:f.name,phone:f.phone,email:f.email,details:extras,website:f.website})});
-   const j=await r.json();if(!r.ok){bad(j.error||'Something went wrong.');return}
-   try{localStorage.setItem('guestName',f.name);localStorage.setItem('phone',f.phone)}catch{}
-   setRef(j.ref);top.current?.scrollIntoView({behavior:'smooth',block:'start'});
-  }catch{bad('No connection. Please try again.')}finally{setBusy(false)}}
+ const [step,setStep]=useState(0);const [bwd,setBwd]=useState(false);const [done,setDone]=useState(false);
+ const [type,setType]=useState('');const [date,setDate]=useState('');const [time,setTime]=useState('');
+ const [guests,setGuests]=useState(50);
+ const [pkg,setPkg]=useState('platter');const [addons,setAddons]=useState<string[]>([]);
+ const [fulfil,setFulfil]=useState(FULFIL[0]);const [diet,setDiet]=useState<string[]>([]);
+ const [name,setName]=useState('');const [phone,setPhone]=useState('');const [venue,setVenue]=useState('');const [notes,setNotes]=useState('');
+ const [err,setErr]=useState('');const [shake,setShake]=useState(false);
+ const [minDate,setMinDate]=useState('');
+ const card=useRef<HTMLDivElement>(null);
 
- const wa=`https://wa.me/${BRAND.wa}?text=${encodeURIComponent(`Hi ${BRAND.name}, my catering enquiry is ${ref}: ${guests} guests on ${long(f.date)}.`)}`;
- return <div id="quote" className="rw" ref={top}>
-  <div className="rw-card">
-   {!ref&&<ol className="rw-prog" aria-label="Progress">{STEPS.map((s,i)=><li key={s} className={(i===step?'on ':'')+(i<step?'done':'')} aria-current={i===step?'step':undefined}>
-    <button type="button" disabled={i>=step} onClick={()=>go(i)}><span>{i<step?'✓':i+1}</span>{s}</button></li>)}</ol>}
+ const pk=PACKAGES.find(p=>p.id===pkg);
+ const est=useMemo(()=>estimate(pkg,guests,addons),[pkg,guests,addons]);
 
-   {ref?<div className="rw-done"><small>ENQUIRY RECEIVED</small><h2>{ref}</h2>
-    <p>Thanks {f.name.split(' ')[0]}. Our catering team will call or message {f.phone} with a written quote, usually within one working day.</p>
-    {est&&<p>Your estimate: about <b>{kes(est.total)}</b>. The final price is confirmed in your quote.</p>}
-    <div className="rw-acts"><a className="btn" href={wa} target="_blank" rel="noreferrer">Message us on WhatsApp</a></div></div>
+ useEffect(()=>{ // earliest bookable date: 2 days from today
+  const d=new Date();d.setDate(d.getDate()+2);setMinDate(d.toLocaleDateString('en-CA'));
+ },[]);
 
-   :<div key={step} className={'rw-step '+(dir>0?'fwd':'bwd')+(shake?' shake':'')}>
-    {step===0&&<>
-     <h2>Tell us about your event</h2>
-     <span className="rw-label">What is the occasion?</span>
-     <div className="rw-chips" role="group" aria-label="Event type">{EVENT_TYPES.map(t=><button type="button" key={t} aria-pressed={f.eventType===t} className={f.eventType===t?'on':''} onClick={()=>set('eventType',t)}>{t}</button>)}</div>
-     <div className="rw-fields">
-      <label className="tx-f"><span>Event date (2+ days ahead)</span><input type="date" min={min} value={f.date} onChange={e=>set('date',e.target.value)}/></label>
-     </div>
-     <span className="rw-label">Time of day (optional)</span>
-     <div className="rw-chips" role="group" aria-label="Time of day">{TIMES.map(t=><button type="button" key={t} aria-pressed={f.time===t} className={f.time===t?'on':''} onClick={()=>set('time',f.time===t?'':t)}>{t}</button>)}</div>
-     <span className="rw-label">How many people?</span>
-     <div className="tx-step"><button type="button" aria-label="10 fewer" onClick={()=>set('guests',Math.max(0,guests-10))}>−</button>
-      <input className="cq-num" type="number" inputMode="numeric" min={MIN_GUESTS} max={MAX_GUESTS} aria-label="Number of guests" value={f.guests||''} onChange={e=>set('guests',Number(e.target.value)||0)} onBlur={()=>set('guests',Math.max(MIN_GUESTS,guests))}/>
-      <button type="button" aria-label="10 more" onClick={()=>set('guests',Math.min(MAX_GUESTS,guests+10))}>+</button><span>guests</span></div>
-     <div className="rw-chips cq-pre">{PRESETS.map(n=><button type="button" key={n} aria-pressed={guests===n} className={guests===n?'on':''} onClick={()=>set('guests',n)}>{n}</button>)}</div>
-     {guests>=150&&<p className="rw-hint">Big event. We&apos;ll likely suggest a quick site visit or call to plan the logistics.</p>}
-     <span className="rw-label">Delivery</span>
-     <div className="rw-chips" role="group" aria-label="Delivery option">{FULFIL.map(t=><button type="button" key={t} aria-pressed={f.fulfilment===t} className={f.fulfilment===t?'on':''} onClick={()=>set('fulfilment',t)}>{t}</button>)}</div>
-     <div className="rw-fields"><label className="tx-f"><span>{f.fulfilment==='Collection'?'Area (optional)':'Delivery address or venue'}</span>
-      <input autoComplete="street-address" placeholder="e.g. Westlands, Delta Towers 5th floor" value={f.venue} onChange={e=>set('venue',e.target.value)}/></label></div>
-    </>}
+ useEffect(()=>{ // the explorer and the package cards pre-fill the form
+  const onEvent=(e:Event)=>{const v=(e as CustomEvent<string>).detail;if(EVENT_TYPES.includes(v))setType(v)};
+  const onPkg=(e:Event)=>{const v=(e as CustomEvent<string>).detail;if(PACKAGES.some(p=>p.id===v))setPkg(v)};
+  window.addEventListener('catering:select-event',onEvent);
+  window.addEventListener('catering:select-package',onPkg);
+  return()=>{window.removeEventListener('catering:select-event',onEvent);window.removeEventListener('catering:select-package',onPkg)};
+ },[]);
 
-    {step===1&&<>
-     <h2>Menu and extras</h2>
-     <span className="rw-label">Choose a package</span>
-     <div className="rw-seats" role="group" aria-label="Package">{PACKAGES.map(p=><button type="button" key={p.id} aria-pressed={f.pkg===p.id} className={f.pkg===p.id?'on':''} onClick={()=>set('pkg',p.id)}>
-      <b>{p.name}</b><small>{p.tagline}</small><small>from {kes(p.per)} / person</small></button>)}
-      <button type="button" aria-pressed={f.pkg==='advise'} className={f.pkg==='advise'?'on':''} onClick={()=>set('pkg','advise')}><b>Not sure yet</b><small>Advise me</small></button></div>
-     <span className="rw-label">Add-ons</span>
-     <div className="rw-chips" role="group" aria-label="Add-ons">{ADDONS.map(a=><button type="button" key={a.id} aria-pressed={f.addons.includes(a.id)} className={f.addons.includes(a.id)?'on':''} onClick={()=>set('addons',tog(f.addons,a.id))}>
-      {a.label} +{a.per?kes(a.per)+'/person':kes(a.flat||0)}</button>)}</div>
-     <span className="rw-label">Dietary needs</span>
-     <div className="rw-chips" role="group" aria-label="Dietary needs">{DIETARY.map(d=><button type="button" key={d} aria-pressed={f.dietary.includes(d)} className={f.dietary.includes(d)?'on':''} onClick={()=>set('dietary',tog(f.dietary,d))}>{d}</button>)}</div>
-     <div className="rw-fields"><label className="tx-f"><span>Anything else? (optional)</span><textarea rows={3} maxLength={300} placeholder="Timings, access, a favourite dish…" value={f.notes} onChange={e=>set('notes',e.target.value)}/></label></div>
-    </>}
+ const check=(s:number)=>{
+  if(s===0){
+   if(!type)return 'Pick the type of event.';
+   if(!date)return 'Choose a date.';
+   if(minDate&&date<minDate)return 'We need at least 2 days notice. For sooner, message us on WhatsApp.';
+   if(!time)return 'Choose a time of day.';
+   if(guests<MIN_GUESTS||guests>MAX_GUESTS)return `Catering is for ${MIN_GUESTS} to ${MAX_GUESTS} guests.`;
+  }
+  if(s===2){
+   if(name.trim().length<2)return 'Add your name.';
+   if(phone.replace(/\D/g,'').length<9)return 'Add a phone number we can reach you on.';
+  }
+  return '';
+ };
+ const fail=(m:string)=>{setErr(m);setShake(true);setTimeout(()=>setShake(false),450)};
+ const show=()=>card.current?.scrollIntoView({behavior:'smooth',block:'start'});
+ const next=()=>{const m=check(step);if(m)return fail(m);setErr('');setBwd(false);setStep(step+1);show()};
+ const back=(n=step-1)=>{setErr('');setBwd(true);setStep(n);show()};
 
-    {step===2&&<>
-     <h2>Your details</h2>
-     <div className="rw-fields">
-      <label className="tx-f"><span>Your name</span><input autoComplete="name" value={f.name} onChange={e=>set('name',e.target.value)}/></label>
-      <label className="tx-f"><span>Phone (WhatsApp preferred)</span><input inputMode="tel" autoComplete="tel" placeholder="07…" value={f.phone} onChange={e=>set('phone',e.target.value)}/></label>
-      <label className="tx-f"><span>Company (optional)</span><input autoComplete="organization" value={f.company} onChange={e=>set('company',e.target.value)}/></label>
-      <label className="tx-f"><span>Email (optional)</span><input type="email" autoComplete="email" value={f.email} onChange={e=>set('email',e.target.value)}/></label>
-     </div>
-     <input className="tx-hp" name="website" tabIndex={-1} autoComplete="off" aria-hidden value={f.website} onChange={e=>set('website',e.target.value)}/>
-     <p className="rw-hint">We only use these details to reply to your enquiry.</p>
-    </>}
+ const text=[
+  `Hi Treehouse, I'd like a catering quote.`,
+  `Event: ${type}`,
+  `Date: ${niceDate(date)} (${time})`,
+  `Guests: ${guests}`,
+  `Package: ${pk?.name}`,
+  addons.length&&`Extras: ${addons.map(id=>ADDONS.find(a=>a.id===id)?.label).filter(Boolean).join(', ')}`,
+  `Service: ${fulfil}`,
+  diet.length&&`Dietary: ${diet.join(', ')}`,
+  venue&&`Venue or area: ${venue}`,
+  notes&&`Notes: ${notes}`,
+  est&&`Estimate: ${kes(est.total)}`,
+  `${name} - ${phone}`,
+ ].filter(Boolean).join('\n');
+ const wa=`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(text)}`;
 
-    {err&&<p role="alert" className="tx-err">{err}</p>}
-    <div className="rw-nav">
-     <button type="button" className="rw-back" style={{visibility:step?'visible':'hidden'}} onClick={()=>go(step-1)}>Back</button>
-     <button type="button" className="btn" disabled={busy} onClick={next}>{busy?'Sending…':step===2?'Send my enquiry':'Continue'}</button>
+ const send=()=>{
+  const m=check(2);if(m)return fail(m);
+  window.open(wa,'_blank','noopener');setDone(true);show();
+ };
+
+ return <div className="rw">
+  <div className={'rw-card'+(shake?' shake':'')} ref={card}>
+   {done?<div className="rw-done">
+    <small>REQUEST READY</small>
+    <h2>One more tap to send it</h2>
+    <p>WhatsApp should have opened with your details filled in. Press send there and we will come back with a written quote, usually within one working day.</p>
+    <div className="rw-acts">
+     <a className="btn" href={wa} target="_blank" rel="noopener">Open WhatsApp again</a>
+     <button type="button" className="btn tx-ghost dk" onClick={()=>{setDone(false);setStep(0)}}>Edit request</button>
     </div>
-   </div>}
+   </div>:<>
+    <ol className="rw-prog">
+     {LABELS.map((l,n)=><li key={l} className={n<step?'done':n===step?'on':''}>
+      <button type="button" disabled={n>=step} onClick={()=>n<step&&back(n)}><span>{n+1}</span>{l}</button>
+     </li>)}
+    </ol>
+
+    <div className={'rw-step'+(bwd?' bwd':'')} key={step}>
+     {step===0&&<>
+      <h2>Tell us about your event</h2>
+      <span className="rw-label">Type of event</span>
+      <div className="rw-chips">{EVENT_TYPES.map(t=><button type="button" key={t} aria-pressed={type===t} className={type===t?'on':''} onClick={()=>setType(t)}>{t}</button>)}</div>
+
+      <label className="rw-label" htmlFor="cq-date">Date</label>
+      <div className="tx-f" style={{maxWidth:'16rem'}}><input id="cq-date" type="date" min={minDate} value={date} onChange={e=>setDate(e.target.value)}/></div>
+
+      <span className="rw-label">Time of day</span>
+      <div className="rw-chips">{TIMES.map(t=><button type="button" key={t} aria-pressed={time===t} className={time===t?'on':''} onClick={()=>setTime(t)}>{t}</button>)}</div>
+
+      <span className="rw-label">Number of guests</span>
+      <div className="tx-step">
+       <button type="button" aria-label="Fewer guests" onClick={()=>setGuests(g=>Math.max(MIN_GUESTS,g-10))}>−</button>
+       <input className="cq-num" type="number" inputMode="numeric" min={MIN_GUESTS} max={MAX_GUESTS} value={guests||''} aria-label="Number of guests"
+        onChange={e=>setGuests(Number(e.target.value)||0)}
+        onBlur={()=>setGuests(g=>Math.min(MAX_GUESTS,Math.max(MIN_GUESTS,g||MIN_GUESTS)))}/>
+       <button type="button" aria-label="More guests" onClick={()=>setGuests(g=>Math.min(MAX_GUESTS,g+10))}>+</button>
+      </div>
+      <div className="rw-chips cq-pre">{PRESETS.map(n=><button type="button" key={n} className={guests===n?'on':''} onClick={()=>setGuests(n)}>{n}</button>)}</div>
+     </>}
+
+     {step===1&&<>
+      <h2>Food and extras</h2>
+      <span className="rw-label">Package</span>
+      <div className="rw-seats">{PACKAGES.map(p=><button type="button" key={p.id} aria-pressed={pkg===p.id} className={pkg===p.id?'on':''} onClick={()=>setPkg(p.id)}>
+       <b>{p.name}</b><small>{p.tagline}</small><small>{kes(p.per)} per person</small>
+      </button>)}</div>
+
+      <span className="rw-label">Extras (optional)</span>
+      <div className="rw-chips">{ADDONS.map(a=><button type="button" key={a.id} aria-pressed={addons.includes(a.id)} className={addons.includes(a.id)?'on':''} onClick={()=>setAddons(l=>toggle(l,a.id))}>
+       {a.label} · {a.per?`${kes(a.per)} pp`:kes(a.flat||0)}
+      </button>)}</div>
+
+      <span className="rw-label">How should we get it to you?</span>
+      <div className="rw-chips">{FULFIL.map(f=><button type="button" key={f} aria-pressed={fulfil===f} className={fulfil===f?'on':''} onClick={()=>setFulfil(f)}>{f}</button>)}</div>
+
+      <span className="rw-label">Dietary needs (optional)</span>
+      <div className="rw-chips">{DIETARY.map(d=><button type="button" key={d} aria-pressed={diet.includes(d)} className={diet.includes(d)?'on':''} onClick={()=>setDiet(l=>toggle(l,d))}>{d}</button>)}</div>
+     </>}
+
+     {step===2&&<>
+      <h2>Your details</h2>
+      <div className="rw-fields">
+       <label className="tx-f"><span>Name</span><input value={name} autoComplete="name" onChange={e=>setName(e.target.value)}/></label>
+       <label className="tx-f"><span>Phone</span><input type="tel" inputMode="tel" autoComplete="tel" placeholder="07xx xxx xxx" value={phone} onChange={e=>setPhone(e.target.value)}/></label>
+       <label className="tx-f"><span>Venue or area (optional)</span><input value={venue} onChange={e=>setVenue(e.target.value)}/></label>
+       <label className="tx-f"><span>Anything else we should know? (optional)</span><textarea rows={3} value={notes} onChange={e=>setNotes(e.target.value)}/></label>
+      </div>
+      <dl className="rw-rev">
+       <div><dt>Event</dt><dd>{type}, {niceDate(date)}, {time}</dd><button type="button" onClick={()=>back(0)}>Edit</button></div>
+       <div><dt>Guests</dt><dd>{guests}</dd><button type="button" onClick={()=>back(0)}>Edit</button></div>
+       <div><dt>Package</dt><dd>{pk?.name}</dd><button type="button" onClick={()=>back(1)}>Edit</button></div>
+      </dl>
+      <p className="rw-hint">This opens WhatsApp with your request ready to send. We reply with a written quote.</p>
+     </>}
+    </div>
+
+    {err&&<p className="tx-err" role="alert">{err}</p>}
+    <div className="rw-nav">
+     {step>0?<button type="button" className="rw-back" onClick={()=>back()}>← Back</button>:<span/>}
+     {step<2
+      ?<button type="button" className="btn" onClick={next}>Continue</button>
+      :<button type="button" className="btn" onClick={send}>Send on WhatsApp</button>}
+    </div>
+   </>}
   </div>
 
-  <aside className="rw-sum" aria-label="Your event">
-   <h3>Your event</h3>
-   <div><span>Occasion</span><b>{f.eventType||'-'}</b></div>
-   <div><span>Date</span><b>{long(f.date)}</b></div>
+  <aside className="rw-sum">
+   <h3>Your estimate</h3>
+   <div><span>Event</span><b>{type||'Not chosen yet'}</b></div>
+   <div><span>Date</span><b>{date?niceDate(date):'Not chosen yet'}</b></div>
    <div><span>Guests</span><b>{guests||'-'}</b></div>
-   <div><span>Package</span><b>{pkg?pkg.name:'To be advised'}</b></div>
-   <section className="cq-est"><small>Indicative estimate</small>
-    {est?<><b className="big">{kes(est.total)}</b>
-     <div className="cq-lines">{est.lines.map(([l,v])=><div key={l}><span>{l}</span><span>{kes(v)}</span></div>)}</div></>
-     :<p>Choose a package to see an estimate.</p>}
-    <p>A guide only. Delivery, venue access and final menu are confirmed in your written quote.</p></section>
+   <div><span>Package</span><b>{pk?.name}</b></div>
+   <div className="rw-tags"><span>Extras</span>{addons.length?addons.map(id=><i key={id}>{ADDONS.find(a=>a.id===id)?.label}</i>):<b>None</b>}</div>
+   {est&&<div className="cq-est">
+    <small>Estimated total</small>
+    <b className="big">{kes(est.total)}</b>
+    <div className="cq-lines">{est.lines.map(([l,v])=><div key={l}><span>{l}</span><span>{kes(v)}</span></div>)}</div>
+    <p>A guide only. Delivery, venue access and the final menu are confirmed in your written quote.</p>
+   </div>}
   </aside>
- </div>;}
+ </div>;
+}

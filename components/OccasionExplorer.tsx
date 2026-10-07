@@ -1,13 +1,11 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {Pic} from '@/components/Dish';
-import {PACKAGES,kes} from '@/lib/catering';
 import {OCC} from '@/lib/occasions';
 
 export default function OccasionExplorer(){
  const [i,setI]=useState(0);const [auto,setAuto]=useState(true);const [still,setStill]=useState(true);
  const tabs=useRef<HTMLDivElement>(null);
- const o=OCC[i];const pkg=PACKAGES.find(p=>p.id===o.pkg);
+ const o=OCC[i];
 
  useEffect(()=>{setStill(matchMedia('(prefers-reduced-motion: reduce)').matches)},[]);
  useEffect(()=>{ // slide the underline to the active tab and keep it centred in the row
@@ -37,17 +35,12 @@ export default function OccasionExplorer(){
     <p className="ob-line">{o.line}</p>
     <p className="ob-desc">{o.desc}</p>
     <ul>{o.bring.map(b=><li key={b}>{b}</li>)}</ul>
-    <div className="ob-meta">
-     <div><span>Suggested</span><b>{pkg?.name}</b></div>
-     <div><span>From</span><b>{pkg?kes(pkg.per):''}<small> / person</small></b></div>
-    </div>
     <button type="button" className="ob-go" onClick={plan}>Plan this event →</button>
    </div>
 
-   <div className="ob-media">
-    {OCC.map((x,n)=><div key={x.id} className={'ob-img'+(i===n?' on':'')} aria-hidden={i!==n}>
-     <Pic id={x.img} alt={i===n?x.title:''} emoji={x.emoji} sizes="(min-width:900px) 40vw, 100vw"/></div>)}
-    <div className="ob-chip"><b>{o.size}</b><span>typical guests</span></div>
+   <div className="ob-panel" key={'p'+o.id} aria-hidden="true">
+    <span className="ob-type">{o.title}</span>
    </div>
   </div>
- </div>;}
+ </div>
+}

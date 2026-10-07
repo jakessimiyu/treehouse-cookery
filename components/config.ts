@@ -1,9 +1,9 @@
 // EDIT ALL OF THIS with your real details
-export const BRAND={name:'Treehouse',open:10,close:22,hoursText:'Daily, 10am to 10pm',
- address:'Your street, Your area, Nairobi',mapQuery:'Treehouse Nairobi',maps:'https://maps.google.com/?q=Treehouse+Nairobi',
- phone:'+254700000000',wa:'254700000000',email:'hello@example.com'};
+export const BRAND={name:'Treehouse Cookery',open:12,close:19,hoursText:'Mon to Fri, 12pm to 7pm',
+ address:'Metropolitan Estate, Chiromo, Nairobi',mapQuery:'Treehouse Nairobi',maps:'https://maps.app.goo.gl/nLC1UCkfrKHVvrxw7?g_st=ic',
+ phone:'+254720752762',wa:'254720752762',email:'inquiries@treehouse.com'};
 // Index 0 = Sunday ... 6 = Saturday. [openHour, closeHour] in 24h time, or null if closed.
-export const HOURS:([number,number]|null)[]=[[10,22],[10,22],[10,22],[10,22],[10,22],[10,22],[10,22]];
+export const HOURS:([number,number]|null)[]=[null,[12,19],[12,19],[12,19],[12,19],[12,19],null];
 // EDIT: how to reach you
 export const GETTING_HERE:[string,string][]=[
  ['By matatu or bus','Tell customers the nearest stage and the route numbers that stop closest to you.'],

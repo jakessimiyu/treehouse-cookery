@@ -1,5 +1,6 @@
 // EDIT: every price, minimum and policy in this file is a placeholder. Replace with real numbers.
 export const MIN_GUESTS=10,MAX_GUESTS=500;
+export const WA_NUMBER='25720752762'; // EDIT: your WhatsApp number
 export const PRESETS=[20,50,100,200];
 export const kes=(n:number)=>'KSh '+n.toLocaleString();
 export const EVENT_TYPES=['Corporate lunch','Meeting','Conference','Private event','Wedding','Birthday','Graduation','Launch or brand event','Bulk order'];
