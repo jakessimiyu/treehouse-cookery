@@ -1,9 +1,9 @@
 'use client';
 import {useRef,useState} from 'react';
 // SAMPLE TEXT. Replace with real customer reviews before launch.
-const R=[['Best chicken on this side of town, and my order was ready before I got there.','Add a real name','Regular'],
- ['We order the office box every Friday. Nobody has ever complained.','Add a real name','Corporate customer'],
- ['Paying on M-Pesa and skipping the queue is a game changer.','Add a real name','Student']];
+const R=[['The loaded fries never disappoints. It has become my go-to spot whenever I’m around.','James M.','Regular'],
+ ['Ordering online is a game changer, especially when I’m rushing between classes.','Sharon W.','Student'],
+ ['Our team loved it. Easy ordering, generous portions, and everything arrived exactly as ordered.','Daniel K.','Corporate Customer']];
 const MS=7000;
 export default function Testimonials(){
  const [i,setI]=useState(0);const [dir,setDir]=useState(1);const [paused,setPaused]=useState(false);
