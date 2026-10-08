@@ -8,6 +8,7 @@ type O={no:number;status:string;items:L[];total:number;notes:string;pickup:strin
 type Entry={o:O;at:number};
 type Plan={asap:boolean;pickup:number;by:number};
 type Kind='new'|'urgent'|'later'|'cooking'|'ready';
+type MI={id:string;name:string;cat:string;price:number;emoji:string;soldOut:boolean};
 
 // ---- tune these to your kitchen ----
 const PREP_BASE=7,PER_ITEM=1,PREP_MAX=20;   // minutes to prepare: base + extra per additional item, capped
@@ -189,7 +190,7 @@ const CSS=`
 .k2-done ul{list-style:none;margin:0;padding:0 0 8px;display:flex;flex-direction:column;gap:8px}
 .k2-done li{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:16px;color:#374151}
 .k2-done li button{border:0;border-radius:10px;background:#e5e8ed;color:#14181f;padding:10px 12px;font-size:15px;font-weight:600;white-space:nowrap}
-.k2-toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:14px;background:#14181f;color:#fff;
+.k2-toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:14px;background:#14181f;color:#fff;
  border-radius:999px;padding:14px 22px;font-size:18px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.25);max-width:calc(100% - 24px)}
 .k2-toast button{border:0;background:#fff;color:#14181f;border-radius:999px;padding:8px 16px;font-weight:700;font-size:16px}
 .k2-gate{display:grid;place-items:center;padding:20px}
@@ -198,6 +199,29 @@ const CSS=`
 .k2-gate p{margin:0;color:#4b5563;font-size:17px;line-height:1.4;text-align:center}
 .k2-gate input{padding:16px;border-radius:12px;border:2px solid #cbd2da;background:#fff;color:#14181f;font-size:18px}
 .k2-gate .k2-err{color:#b91c1c;font-weight:700}
+/* menu availability panel */
+.k2-menu{position:fixed;inset:0;z-index:65;background:rgba(20,24,31,.55);display:flex;justify-content:center}
+.k2-menu-in{width:min(760px,100%);height:100%;background:#f4f5f7;display:flex;flex-direction:column;min-height:0}
+.k2-menu-top{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:#fff;border-bottom:1px solid #dde1e7}
+.k2-menu-top h2{margin:0;font-size:24px;font-weight:800}
+.k2-menu-top small{display:block;font-size:15px;color:#5b6573;margin-top:2px}
+.k2-menu-x{flex:none;min-height:48px;border:0;border-radius:12px;background:#14181f;color:#fff;font-size:17px;font-weight:700;padding:0 22px}
+.k2-menu-q{flex:none;margin:12px 16px 0;padding:14px;border-radius:12px;border:2px solid #cbd2da;font-size:17px;background:#fff;color:#14181f}
+.k2-menu-list{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 16px 24px}
+.k2-menu-cat{margin:18px 0 8px;font-size:14px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5b6573}
+.k2-mrow{display:flex;align-items:center;gap:12px;background:#fff;border:2px solid #dde1e7;border-radius:14px;padding:10px 12px;margin-bottom:8px}
+.k2-mrow.out{background:#fef2f2;border-color:#fca5a5}
+.k2-mem{flex:none;font-size:26px;width:36px;text-align:center}
+.k2-mname{flex:1 1 auto;min-width:0}
+.k2-mname b{display:block;font-size:19px;line-height:1.25;overflow-wrap:anywhere}
+.k2-mname small{font-size:14px;color:#6b7482}
+.k2-mrow.out .k2-mname b{text-decoration:line-through;color:#7f1d1d}
+.k2-sw{flex:none;min-width:132px;min-height:52px;border:0;border-radius:999px;font-size:16px;font-weight:800;padding:0 16px;color:#fff}
+.k2-sw.on{background:#16a34a}.k2-sw.off{background:#dc2626}.k2-sw:disabled{opacity:.55}
+.k2-menu-foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px;background:#fff;border-top:1px solid #dde1e7}
+.k2-menu-foot span{font-size:14px;color:#5b6573;flex:1 1 220px}
+.k2-menu-reset{min-height:48px;border:2px solid #cbd2da;border-radius:12px;background:#fff;color:#14181f;font-size:16px;font-weight:700;padding:0 18px}
+.k2-menu-reset.sure{background:#dc2626;border-color:#dc2626;color:#fff}
 @media (max-width:899px){
  .k2-tabs{flex:none;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 12px 0}
  .k2-tabs button{border:0;border-radius:14px;background:#fff;color:#14181f;box-shadow:inset 0 0 0 1px #dde1e7;padding:10px 6px;font-size:16px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:2px}
@@ -209,6 +233,7 @@ const CSS=`
  .k2-ch2{display:none}
  .k2-no{font-size:36px}
  .k2-shop-btns{grid-template-columns:1fr}
+ .k2-sw{min-width:112px}
 }
 `;
 
@@ -225,6 +250,10 @@ export default function Kitchen(){
  const mapRef=useRef(map);mapRef.current=map;
  const [shop,setShop]=useState<{mode:'auto'|'open'|'closed';note:string;open:boolean;text:string}|null>(null);
  const [shopOpen,setShopOpen]=useState(false);const [shopNote,setShopNote]=useState('');
+ // menu availability
+ const [menu,setMenu]=useState<MI[]>([]);const [menuOpen,setMenuOpen]=useState(false);const [menuQ,setMenuQ]=useState('');
+ const [menuBusy,setMenuBusy]=useState<Record<string,boolean>>({});const [confirmReset,setConfirmReset]=useState(false);
+ const inflight=useRef(0);
 
  useEffect(()=>{try{setKeyIn(localStorage.getItem('sk')||'')}catch{}},[]);
  const flash=useCallback((text:string,undo?:()=>void)=>{
@@ -327,7 +356,7 @@ export default function Kitchen(){
   loadShop();const i=setInterval(()=>{if(!document.hidden)loadShop()},15000);
   return()=>clearInterval(i);
  },[started,loadShop]);
-  const saveShop=async(mode:'auto'|'open'|'closed',note:string=shopNote)=>{
+ const saveShop=async(mode:'auto'|'open'|'closed',note:string=shopNote)=>{
   try{
    const r=await fetch('/api/shop',{method:'POST',headers:{'x-staff-key':key,'Content-Type':'application/json'},body:JSON.stringify({mode,note:note.trim()})});
    const j=await r.json().catch(()=>({}));
@@ -335,6 +364,47 @@ export default function Kitchen(){
    else flash('Could not change the shop status. Nothing was changed.');
   }catch{flash('No connection. The shop status was NOT changed.')}
  };
+
+ // ---- menu availability (sold out for today) ----
+ const loadMenu=useCallback(async()=>{
+  if(inflight.current>0)return; // don't overwrite a switch that is still being saved
+  try{const r=await fetch('/api/menu',{cache:'no-store'});const j=await r.json();if(Array.isArray(j))setMenu(j)}catch{}
+ },[]);
+ useEffect(()=>{
+  if(!started)return;
+  loadMenu();const i=setInterval(()=>{if(!document.hidden)loadMenu()},menuOpen?10000:30000);
+  return()=>clearInterval(i);
+ },[started,menuOpen,loadMenu]);
+ useEffect(()=>{
+  if(!menuOpen)return;
+  const k=(e:KeyboardEvent)=>{if(e.key==='Escape')setMenuOpen(false)};
+  window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);
+ },[menuOpen]);
+ const toggleItem=async(m:MI)=>{
+  const sold=!m.soldOut;
+  inflight.current++;setMenuBusy(b=>({...b,[m.id]:true}));
+  setMenu(p=>p.map(x=>x.id===m.id?{...x,soldOut:sold}:x)); // show it straight away
+  try{
+   const r=await fetch('/api/kitchen/menu',{method:'POST',headers:{'x-staff-key':key,'Content-Type':'application/json'},body:JSON.stringify({id:m.id,soldOut:sold})});
+   if(!r.ok)throw new Error('status '+r.status);
+   flash(sold?`${m.name} is now sold out`:`${m.name} is available again`);
+  }catch{
+   setMenu(p=>p.map(x=>x.id===m.id?{...x,soldOut:!sold}:x)); // put it back
+   flash(`Could not change ${m.name}. Nothing was changed.`);
+  }finally{
+   inflight.current--;setMenuBusy(b=>{const n={...b};delete n[m.id];return n});
+  }
+ };
+ const resetMenu=async()=>{
+  if(!confirmReset){setConfirmReset(true);setTimeout(()=>setConfirmReset(false),3000);return}
+  setConfirmReset(false);
+  try{
+   const r=await fetch('/api/kitchen/menu',{method:'POST',headers:{'x-staff-key':key,'Content-Type':'application/json'},body:JSON.stringify({action:'reset'})});
+   if(!r.ok)throw new Error('status '+r.status);
+   setMenu(p=>p.map(x=>({...x,soldOut:false})));flash('Everything is available again');
+  }catch{flash('Could not reset the menu. Nothing was changed.')}
+ };
+
  // ---- derived view ----
  const t=now+offset.current;
  const orders=Object.values(map).map(x=>x.o);
@@ -360,6 +430,11 @@ export default function Kitchen(){
  const hasNew=nw.length>0;
  const oldest=hasNew?Math.max(...nw.map(o=>t-age(o))):0;
  const newCount=nw.length,urgentKey=ur.map(o=>o.no).join(','),synced=lastSync>0;
+
+ const soldCount=menu.filter(m=>m.soldOut).length;
+ const mq=menuQ.trim().toLowerCase();
+ const shown=menu.filter(m=>!mq||m.name.toLowerCase().includes(mq)||m.cat.toLowerCase().includes(mq));
+ const cats=[...new Set(shown.map(m=>m.cat))];
 
  // sound: chime on arrival, then repeat with rising urgency until accepted
  useEffect(()=>{
@@ -460,11 +535,12 @@ export default function Kitchen(){
    <span className="k2-clock">{clock(t)}</span>
    <span className={'k2-pill '+cls}><i/>{label}</span>
    <button type="button" className={'k2-pill '+(shop?(shop.open?'live':'down'):'')} onClick={()=>{setShopNote(shop?.note||'');setShopOpen(o=>!o)}} aria-expanded={shopOpen}><i/>{shop?(shop.open?'Shop open':'Shop closed'):'Shop'}</button>
+   <button type="button" className={'k2-pill'+(soldCount?' warn':'')} onClick={()=>{setMenuQ('');setMenuOpen(true)}}>🍽 Menu{soldCount?` · ${soldCount} sold out`:''}</button>
    {!audioOn&&!muted&&<button type="button" className="k2-pill warn" onClick={unlock}>🔇 Tap to enable sound</button>}
    <button type="button" className="k2-pill" onClick={()=>setMuted(m=>!m)}>{muted?'🔇 Sound off':'🔔 Sound on'}</button>
    <button type="button" className="k2-pill" onClick={fs} aria-label="Toggle full screen">⛶</button>
   </div>
-    {shopOpen&&<form className="k2-shop" role="region" aria-label="Shop status" onSubmit={e=>{e.preventDefault();saveShop(shop?.mode||'auto')}}>
+  {shopOpen&&<form className="k2-shop" role="region" aria-label="Shop status" onSubmit={e=>{e.preventDefault();saveShop(shop?.mode||'auto')}}>
    <div className="k2-shop-now">The website shows: <b>{shop?shop.text:'…'}</b></div>
    <div className="k2-shop-btns">
     {([['auto','Follow opening hours'],['open','Open now'],['closed','Closed']] as const).map(([m,l])=>
@@ -475,7 +551,7 @@ export default function Kitchen(){
     <button type="submit" className="k2-shop-save" disabled={shopNote.trim()===(shop?.note||'')}>Save note</button>
    </div>
    <small className="k2-shop-hint">The note only shows on the website while <b>Closed</b> is selected. Leave it empty and save to remove it.</small>
-  </form>} 
+  </form>}
   {offline&&<div className="k2-off" role="alert">Offline. New orders may be missing. Check the internet; everything syncs when it returns.</div>}
   {hasNew&&<div className="k2-alert" role="alert">
    <b>{oldest>=60000?`Unaccepted for ${Math.floor(oldest/60000)} min`:`New order${newCount>1?'s':''}`}</b>
@@ -511,6 +587,33 @@ export default function Kitchen(){
        <button type="button" disabled={!!busy[o.no]} onClick={()=>move(o,'READY',true)}>Undo</button></li>)}</ul></details>}
     </div></section>
   </div>
+
+  {menuOpen&&<div className="k2-menu" role="dialog" aria-modal="true" aria-label="Menu availability" onClick={e=>{if(e.target===e.currentTarget)setMenuOpen(false)}}>
+   <div className="k2-menu-in">
+    <div className="k2-menu-top">
+     <div><h2>Menu availability</h2><small>{soldCount?`${soldCount} sold out today`:'Everything is available'}</small></div>
+     <button type="button" className="k2-menu-x" onClick={()=>setMenuOpen(false)}>Done</button>
+    </div>
+    <input className="k2-menu-q" type="search" placeholder="Search the menu…" value={menuQ} onChange={e=>setMenuQ(e.target.value)} aria-label="Search the menu"/>
+    <div className="k2-menu-list">
+     {!menu.length&&<div className="k2-empty">Loading the menu…</div>}
+     {menu.length>0&&!shown.length&&<div className="k2-empty">Nothing matches “{menuQ}”.</div>}
+     {cats.map(c=><div key={c}>
+      <h3 className="k2-menu-cat">{c}</h3>
+      {shown.filter(m=>m.cat===c).map(m=><div key={m.id} className={'k2-mrow'+(m.soldOut?' out':'')}>
+       <span className="k2-mem" aria-hidden>{m.emoji}</span>
+       <div className="k2-mname"><b>{m.name}</b><small>KSh {m.price.toLocaleString()}</small></div>
+       <button type="button" role="switch" aria-checked={!m.soldOut} aria-label={`${m.name}: ${m.soldOut?'sold out':'available'}`}
+        className={'k2-sw '+(m.soldOut?'off':'on')} disabled={!!menuBusy[m.id]} onClick={()=>toggleItem(m)}>{m.soldOut?'Sold out':'Available'}</button>
+      </div>)}
+     </div>)}
+    </div>
+    <div className="k2-menu-foot">
+     <span>Sold-out items come back on their own at midnight.</span>
+     <button type="button" className={'k2-menu-reset'+(confirmReset?' sure':'')} disabled={!soldCount} onClick={resetMenu}>{confirmReset?'Tap again to confirm':'Reset all to available'}</button>
+    </div>
+   </div>
+  </div>}
 
   {toast&&<div className="k2-toast" role="status"><span>{toast.text}</span>{toast.undo&&<button type="button" onClick={()=>{toast.undo?.();setToast(null)}}>Undo</button>}</div>}
  </div>;}

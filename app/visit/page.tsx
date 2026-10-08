@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import {BRAND,HOURS,GETTING_HERE,GOOD_TO_KNOW} from '@/components/config';
+import {BRAND,HOURS,GOOD_TO_KNOW} from '@/components/config';
 import VisitInfo from '@/components/VisitInfo';
 export const metadata={title:'Visit | Treehouse',description:'Address, opening hours, directions and how to get to Treehouse.'};
 export default function VisitPage(){
@@ -20,9 +20,6 @@ export default function VisitPage(){
   <div><h3>Order ahead</h3><p><Link href="/order">Order online</Link>, pay with M-Pesa and collect with your order number. No queue.</p></div>
   <div><h3>Events and offices</h3><p>Planning for a crowd? See <Link href="/catering">catering</Link> and get a written quote.</p></div>
  </section>
-
- <section className="cq-sec"><h2>Getting here</h2>
-  <ul className="cq-occ">{GETTING_HERE.map(([t,d])=><li key={t}><h3>{t}</h3><p>{d}</p></li>)}</ul></section>
 
  <section className="cq-sec gr"><h2>Good to know</h2>
   <div className="cq-faq">{GOOD_TO_KNOW.map(([q,a])=><details key={q}><summary>{q}</summary><p>{a}</p></details>)}</div></section>

@@ -1,5 +1,5 @@
-import type {PoolClient} from 'pg';
-import {q,tx} from './db';
+import type {Conn} from './db';
+import {q,tx,withConn} from './db';
 
 export type Status='PENDING_PAYMENT'|'PAID'|'PREPARING'|'READY'|'COMPLETED'|'CANCELLED'|'PAYMENT_FAILED';
 export type Line={id:string;name:string;qty:number;price:number};
@@ -14,11 +14,11 @@ export const toOrder=(r:Row):Order=>({no:r.no,status:r.status,items:r.items,tota
  receipt:r.receipt??undefined,version:r.version,createdAt:r.created_at.getTime(),payStart:r.pay_start.getTime(),
  paidAt:ms(r.paid_at),acceptedAt:ms(r.accepted_at),preparingAt:ms(r.preparing_at),readyAt:ms(r.ready_at),completedAt:ms(r.completed_at)});
 
-const find=async(c:PoolClient,by:By)=>(await c.query<Row>(
+const find=async(c:Conn,by:By)=>(await c.query<Row>(
  `select * from orders where ($1::int is not null and no=$1)
    or ($2::text is not null and no=(select order_no from checkouts where checkout_id=$2))
   limit 1 for update`,[by.no??null,by.checkoutId??null])).rows[0];
-const log=(c:PoolClient,no:number,from:string|null,to:string,actor:string)=>
+const log=(c:Conn,no:number,from:string|null,to:string,actor:string)=>
  c.query('insert into order_events(order_no,from_status,to_status,actor) values($1,$2,$3,$4)',[no,from,to,actor]);
 
 /* ---------- customer side ---------- */
@@ -146,17 +146,23 @@ export async function maxEventId(){
 }
 
 // Full picture for a kitchen screen: everything active plus the last few completed.
+// One connection for both reads; the event id is still read first, so no event can fall between this snapshot and the stream.
 export async function listKitchen(){
- const lastEventId=await maxEventId(); // read first, so no event can fall between this snapshot and the stream
- const rows=await q<Row>(`(select * from orders where status in ('PAID','PREPARING','READY'))
-  union all (select * from orders where status='COMPLETED' order by completed_at desc limit 25)`);
- return{orders:rows.map(toOrder),lastEventId,serverTime:Date.now()};
+ return withConn(async c=>{
+  const m=await c.query<{m:number}>('select coalesce(max(id),0)::int as m from order_events');
+  const rows=await c.query<Row>(`(select * from orders where status in ('PAID','PREPARING','READY'))
+   union all (select * from orders where status='COMPLETED' order by completed_at desc limit 25)`);
+  return{orders:rows.rows.map(toOrder),lastEventId:m.rows[0].m,serverTime:Date.now()};
+ });
 }
 
-export async function eventsAfter(id:number){
+// "lookback" re-reads a few ids behind the cursor. Event ids are handed out before commit, so an event can commit
+// after a higher id was already seen; the stream dedupes what it re-reads.
+export async function eventsAfter(id:number,lookback=0){
+ const from=Math.max(id-lookback,0);
  const rows=await q<Row&{eid:number}>(
-  `select e.id::int as eid,o.* from order_events e join orders o on o.no=e.order_no where e.id>$1 order by e.id limit 200`,[id]);
+  `select e.id::int as eid,o.* from order_events e join orders o on o.no=e.order_no where e.id>$1 order by e.id limit 200`,[from]);
  const last=new Map<number,{eid:number;order:Order}>();
  for(const r of rows)last.set(r.no,{eid:r.eid,order:toOrder(r)});
- return{events:[...last.values()].sort((a,b)=>a.eid-b.eid),maxId:rows.length?rows[rows.length-1].eid:id};
+ return{events:[...last.values()].sort((a,b)=>a.eid-b.eid),maxId:rows.length?Math.max(id,rows[rows.length-1].eid):id};
 }

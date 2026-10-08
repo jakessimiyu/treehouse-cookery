@@ -10,9 +10,29 @@ export const GETTING_HERE:[string,string][]=[
  ['Taxi or ride-hailing','Give a landmark to use as the drop-off point, like a well-known building or junction.'],
  ['Driving','Explain the approach road and any one-way streets or tricky turns.'],
  ['Parking','Say where customers can park, whether it is free, and how many spaces there are.']];
-export const GOOD_TO_KNOW:[string,string][]=[
- ['Do I need a reservation?','Walk-ins are welcome. For groups of 4 or more, or busy evenings, reserving a table is a good idea.'],
- ['Can I order ahead and collect?','Yes. Order online, pay with M-Pesa and pick up with your order number. No queue.'],
- ['Is there step-free access?','Add details of step-free access, accessible restrooms and any other help you offer.'],
- ['Do you take cards and cash?','Add the payment methods you accept in the restaurant.'],
- ['Are you good for kids and groups?','Add details about high chairs, group seating and family-friendly options.']];
+export const GOOD_TO_KNOW: [string, string][] = [
+  [
+    'Do I need a reservation?',
+    'Walk-ins are welcome. For larger groups, we recommend reserving ahead to secure your table.',
+  ],
+  [
+    'Can I order online?',
+    'Yes. Browse the menu, place your order, pay via M-Pesa, and pick it up when it’s ready.',
+  ],
+  [
+    'How long does an order take?',
+    'Most orders are prepared quickly. Your order status will update once it’s being prepared and when it’s ready.',
+  ],
+  [
+    'Do you accept M-Pesa?',
+    'Yes. We accept M-Pesa for online orders, making checkout quick and convenient.',
+  ],
+  [
+    'Can I order for a group?',
+    'Absolutely. For team lunches, events, or larger orders, our catering service can help.',
+  ],
+  [
+    'Do you offer takeaway?',
+    'Yes. Place your order online or at the restaurant and enjoy your meal wherever you are.',
+  ],
+];

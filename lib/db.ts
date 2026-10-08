@@ -1,91 +1,53 @@
-import {Pool,PoolClient,QueryResultRow} from 'pg';
-import {createHash} from 'crypto';
+import {Client,QueryResultRow} from 'pg';
+import {getCloudflareContext} from '@opennextjs/cloudflare';
 
-type G={__pg?:Pool;__pgReady?:Promise<void>;__pgSchema?:string;__pgFailAt?:number};
-const g=globalThis as unknown as G;
-const url=process.env.DATABASE_URL;
-const FAIL_COOLDOWN_MS=30_000; // after a failed connect, don't retry for 30s (protects the pooler's auth circuit breaker)
+export type Conn=Client;
 
-export const pool=g.__pg??(g.__pg=(()=>{
- const p=new Pool({
-  connectionString:url,max:5,idleTimeoutMillis:10_000,connectionTimeoutMillis:8_000,
-  ssl:!url||/localhost|127\.0\.0\.1/.test(url)?undefined:{rejectUnauthorized:false}});
- p.on('error',e=>console.error('pg idle client error',e.message)); // a dropped idle connection must not crash the process
- return p;
-})());
+const CONNECT_MS=5_000,QUERY_MS=10_000;
+const sleep=(ms:number)=>new Promise<void>(r=>setTimeout(r,ms));
 
-const SCHEMA=`
-create sequence if not exists order_no_seq start 1042;
-create table if not exists orders(
- no integer primary key default nextval('order_no_seq'),
- idem_key text not null unique,
- phone text not null,
- items jsonb not null,
- total integer not null,
- notes text not null default '',
- pickup text not null default 'ASAP',
- status text not null default 'PENDING_PAYMENT'
-  check(status in('PENDING_PAYMENT','PAID','PREPARING','READY','COMPLETED','CANCELLED','PAYMENT_FAILED')),
- receipt text unique,
- version integer not null default 1,
- created_at timestamptz not null default now(),
- pay_start timestamptz not null default now(),
- paid_at timestamptz,
- preparing_at timestamptz,
- ready_at timestamptz,
- completed_at timestamptz
-);
-alter table orders add column if not exists accepted_at timestamptz;
-create index if not exists orders_status_idx on orders(status);
-create table if not exists checkouts(
- checkout_id text primary key,
- order_no integer not null references orders(no),
- at timestamptz not null default now()
-);
-create table if not exists order_events(
- id bigserial primary key,
- order_no integer not null references orders(no),
- from_status text,
- to_status text not null,
- actor text not null default 'system',
- at timestamptz not null default now()
-);
-create index if not exists order_events_no_idx on order_events(order_no);
-create table if not exists payment_orphans(
- id bigserial primary key,
- checkout_id text,
- receipt text,
- raw jsonb,
- at timestamptz not null default now()
-);`;
-const SCHEMA_ID=createHash('sha1').update(SCHEMA).digest('hex');
-
-async function migrate(){
+// Hyperdrive if bound, otherwise DATABASE_URL (Supabase transaction pooler).
+function target(){
+ try{
+  const h=(getCloudflareContext().env as unknown as {HYPERDRIVE?:{connectionString:string}}).HYPERDRIVE;
+  if(h?.connectionString)return{url:h.connectionString,hyper:true};
+ }catch{/* not inside a Cloudflare request (e.g. plain next dev) */}
+ const url=process.env.DATABASE_URL;
  if(!url)throw new Error('DATABASE_URL is not set');
- const c=await pool.connect();
- try{await c.query('begin');await c.query('select pg_advisory_xact_lock(7421)');await c.query(SCHEMA);await c.query('commit')}
- catch(e){await c.query('rollback').catch(()=>{});throw e}
- finally{c.release()}
+ return{url,hyper:false};
 }
 
-const ready=():Promise<void>=>{
- // schema text changed (e.g. after a hot reload): forget the old "already migrated" result
- if(g.__pgSchema!==SCHEMA_ID){g.__pgSchema=SCHEMA_ID;g.__pgReady=undefined;g.__pgFailAt=undefined}
- if(g.__pgReady)return g.__pgReady;
- if(Date.now()-(g.__pgFailAt??0)<FAIL_COOLDOWN_MS)return Promise.reject(new Error('Database unavailable, retrying shortly'));
- return g.__pgReady=migrate().catch(e=>{
-  console.error('database migration failed',e);
-  g.__pgReady=undefined;g.__pgFailAt=Date.now();
-  throw e;
- });
-};
+const close=(c:Client)=>Promise.race([c.end().catch(()=>{}),sleep(1000)]);
 
-export async function q<T extends QueryResultRow>(text:string,params:unknown[]=[]):Promise<T[]>{
- await ready();return (await pool.query<T>(text,params)).rows;
+// A connection belongs to ONE request. Never cache it. Retrying only the connect step is safe: no SQL has been sent yet.
+async function open():Promise<Client>{
+ const {url,hyper}=target();
+ const local=/localhost|127\.0\.0\.1/.test(url);
+ for(let attempt=0;;attempt++){
+  const c=new Client({connectionString:url,connectionTimeoutMillis:CONNECT_MS,query_timeout:QUERY_MS,
+   ssl:hyper||local?undefined:{rejectUnauthorized:false}});
+  c.on('error',e=>console.error('pg client error',e.message));
+  try{await c.connect();return c}
+  catch(e){
+   await close(c);
+   if(attempt>=1)throw e;
+   console.warn('pg connect failed, retrying once',(e as Error).message);
+   await sleep(200);
+  }
+ }
 }
-export async function tx<T>(fn:(c:PoolClient)=>Promise<T>):Promise<T>{
- await ready();const c=await pool.connect();
- try{await c.query('begin');const r=await fn(c);await c.query('commit');return r}
- catch(e){await c.query('rollback').catch(()=>{});throw e}
- finally{c.release()}
+
+// One connection for everything inside fn (use for routes that run several queries).
+export async function withConn<T>(fn:(c:Conn)=>Promise<T>):Promise<T>{
+ const c=await open();
+ try{return await fn(c)}finally{await close(c)}
 }
+
+export const q=<T extends QueryResultRow>(text:string,params:unknown[]=[]):Promise<T[]>=>
+ withConn(c=>c.query<T>(text,params).then(r=>r.rows));
+
+export const tx=<T>(fn:(c:Conn)=>Promise<T>):Promise<T>=>withConn(async c=>{
+ await c.query('begin; set local statement_timeout=8000; set local lock_timeout=5000');
+ try{const r=await fn(c);await c.query('commit');return r}
+ catch(e){await Promise.race([c.query('rollback').catch(()=>{}),sleep(2000)]);throw e}
+});
