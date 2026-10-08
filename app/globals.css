@@ -640,17 +640,21 @@ nav.tx-nav{overflow:visible;white-space:normal;gap:1.4rem;padding:.4rem var(--pa
 .tx-tq{max-width:none;margin:0;background:#0b0b0b;color:#fff;padding:5.5rem var(--pad) 4.5rem}
 .tq-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .tq-head h2{font:500 clamp(1.1rem,2vw,1.4rem) var(--body),sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#9a9a9a}
-.tq-fig{position:relative;margin:3rem 0 3.2rem;min-height:15rem;max-width:56rem}
-.tq-mark{position:absolute;left:-.05em;top:-.35em;font:400 clamp(6rem,14vw,10rem)/1 var(--display),Georgia,serif;color:var(--red);opacity:.9;
- animation:tqfade 1s var(--ease) both}
+/* stacked slides: all quotes share one grid cell, so the box never changes height and nothing remounts */
+.tq-stage{display:grid;margin:3rem 0 3.2rem;max-width:56rem;--y:.5em}
+.tq-fig{grid-area:1/1;position:relative;margin:0;min-height:15rem;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .3s ease,visibility 0s .3s}
+.tq-fig.on{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .45s ease .1s,visibility 0s}
+.tq-mark{position:absolute;left:-.05em;top:-.35em;font:400 clamp(6rem,14vw,10rem)/1 var(--display),Georgia,serif;color:var(--red);opacity:.9}
 .tq-fig blockquote{margin:0;padding:3.2rem 0 0}
 .tq-fig p{margin:0;font:italic 400 clamp(1.6rem,3.6vw,2.7rem)/1.28 var(--display),Georgia,serif;letter-spacing:-.005em;color:#f4f4f4}
-.tq-w{display:inline-block;animation:tqword .9s var(--ease) calc(var(--w)*45ms + .1s) both}
-.tq-fig figcaption{display:flex;align-items:center;gap:.9rem;margin-top:2rem;font:500 .85rem var(--body),sans-serif;letter-spacing:.04em;color:#9a9a9a;
- animation:tqfade .9s var(--ease) .7s both}
+.tq-w{display:inline-block}
+.tq-fig.on .tq-w{animation:tqword .6s var(--ease) calc(var(--w)*30ms + .1s) both}
+.tq-fig.on .tq-mark{animation:tqfade .8s var(--ease) both}
+.tq-fig figcaption{display:flex;align-items:center;gap:.9rem;margin-top:2rem;font:500 .85rem var(--body),sans-serif;letter-spacing:.04em;color:#9a9a9a}
+.tq-fig.on figcaption{animation:tqfade .7s var(--ease) .5s both}
 .tq-fig figcaption:before{content:"";width:2.4rem;height:1px;background:var(--red)}
 .tq-fig figcaption b{color:#fff;font-weight:600}
-@keyframes tqword{from{opacity:0;transform:translateY(var(--y,.5em));filter:blur(6px)}}
+@keyframes tqword{from{opacity:0;transform:translateY(var(--y,.5em))}}
 @keyframes tqfade{from{opacity:0;transform:translateY(10px)}}
 
 .tq-segs{display:flex;align-items:center;gap:.7rem}
@@ -665,7 +669,8 @@ nav.tx-nav{overflow:visible;white-space:normal;gap:1.4rem;padding:.4rem var(--pa
 @media(hover:none){.tq-head .tx-arrows{display:flex}}
 
 @media(prefers-reduced-motion:reduce){
- .tq-w,.tq-mark,.tq-fig figcaption{animation:none}
+ .tq-fig.on .tq-w,.tq-fig.on .tq-mark,.tq-fig.on figcaption{animation:none}
+ .tq-fig,.tq-fig.on{transition:none}
  .tq-segs .now i{animation:none;transform:scaleX(1)}}
  /* ===== CATERING TEASER: photo card ===== */
 .tx-ct{max-width:none;margin:0;background:#fff;padding:4.5rem var(--pad)}

@@ -42,7 +42,7 @@ export default function Home(){
 
  return <>
  <header className="tx-hero">
-  <div className="tx-heroimg"><div className="tx-parwrap" data-par="-.12"><Pic id="hero" sizes="100vw" alt="Crispy chicken and loaded chips" emoji="🍗" eager/></div></div>
+  <div className="tx-heroimg"><div className="tx-parwrap" data-par="-.12"><Pic id="hero" sizes="100vw" alt="Crispy chicken and loaded chips" eager/></div></div>
   <div className="tx-hi" style={dl('.1s')}><OpenNow/></div>
   <h1 className="tx-h1"><span><i>GOOD FOOD.</i></span><span><i>BAD DECISIONS.</i></span></h1>
   <p className="tx-sub tx-hi" style={dl('.8s')}>Crispy, loaded, ready in minutes. Order here, pay with M-Pesa, walk past the queue.</p>
@@ -53,9 +53,9 @@ export default function Home(){
  </header>
 
  <section className="tx-crave"><h2 className="tx-rv">WHAT ARE YOU CRAVING?</h2>
-  <div className="tx-tiles">{CRAVE.map(c=>{const n=match(c).length;const rep=menu.find(m=>m.id===REP[c]);
+  <div className="tx-tiles">{CRAVE.map(c=>{const n=match(c).length;
    return <button key={c} type="button" className={'tx-tile'+(crave===c?' on':'')} aria-pressed={crave===c} disabled={loaded&&!n} onClick={()=>choose(c)}>
-    <Pic id={REP[c]} sizes="(min-width:1000px) 200px, (min-width:600px) 33vw, 50vw" alt="" emoji={rep?.emoji||'🍽️'}/>
+    <Pic id={REP[c]} sizes="(min-width:1000px) 200px, (min-width:600px) 33vw, 50vw" alt=""/>
     <span className="tx-tl"><b>{c}</b>{loaded&&<small>{n} {n===1?'dish':'dishes'}</small>}</span></button>})}</div>
   <button type="button" className={'btn tx-ghost dk tx-surprise'+(rolling?' rolling':'')} onClick={roll} disabled={!loaded}>{rolling?ticker:pick?'Roll again':'Surprise me'}</button>
   <div aria-live="polite">
@@ -68,19 +68,19 @@ export default function Home(){
  </section>
 
  {!loaded&&<div className="tx-skel" aria-hidden><i/><i/><i/><i/></div>}
- {rail('🔥 PEOPLE ARE OBSESSED WITH',by(['fried-chicken','loaded-chips','shawarma-chicken','burger-double','milkshake']),'tx-s1','obsessed')}
- {bir&&<section className="tx-sig tx-mask"><div className="tx-sigimg"><div className="tx-parwrap" data-par=".1"><Pic id={bir.id} sizes="100vw" alt={bir.name} emoji={bir.emoji}/></div></div>
+ {rail('PEOPLE ARE OBSESSED WITH',by(['fried-chicken','loaded-chips','shawarma-chicken','burger-double','milkshake']),'tx-s1','obsessed')}
+ {bir&&<section className="tx-sig tx-mask"><div className="tx-sigimg"><div className="tx-parwrap" data-par=".1"><Pic id={bir.id} sizes="100vw" alt={bir.name}/></div></div>
   <svg className="tx-stamp" viewBox="0 0 120 120" aria-hidden><defs><path id="tx-ring" d="M60,60 m-46,0 a46,46 0 1,1 92,0 a46,46 0 1,1 -92,0"/></defs>
    <text><textPath href="#tx-ring" textLength="286" lengthAdjust="spacing">SLOW-COOKED ✦ FRAGRANT ✦ LOADED ✦ </textPath></text></svg>
   <div className="tx-sigtxt tx-rv"><h2>THE CHICKEN BIRYANI</h2><p>Slow-cooked. Fragrant. Loaded.</p><b>{kes(bir.price)}</b>
    {bir.soldOut?<span>Sold out today</span>:<button className="tx-add big" onClick={addBir} aria-live="polite">{added?'ADDED ✓':'ADD TO ORDER'}</button>}</div></section>}
- {rail('🍗 CHICKEN FIX',cat('Chicken'),'tx-s2')}
- {rail('🌯 WRAPPED & LOADED',[...cat('Shawarma'),...by(['wrap'])],'tx-s3')}
- {rail("🍟 FRIES DON'T HAVE TO BE BORING",cat('Chips'),'tx-s4')}
- {rail('💥 COMBOS: SOLO, COUPLES, SQUADS, TEAMS',cat('Combos'),'tx-s5','combos')}
+ {rail('CHICKEN FIX',cat('Chicken'),'tx-s2')}
+ {rail('WRAPPED & LOADED',[...cat('Shawarma'),...by(['wrap'])],'tx-s3')}
+ {rail("FRIES DON'T HAVE TO BE BORING",cat('Chips'),'tx-s4')}
+ {rail('COMBOS: SOLO, COUPLES, SQUADS, TEAMS',cat('Combos'),'tx-s5','combos')}
 
  <section className="tx-cta2"><h2 className="tx-rv">HUNGRY YET?</h2>
   <div className="tx-cta"><Link className="btn" data-mag href="/order">START YOUR ORDER</Link><Link className="btn tx-ghost" data-mag href="/menu">SEE THE FULL MENU</Link></div></section>
 
  <HowItWorks/><StatsCounter/><Testimonials/><CateringTeaser/>
- </>;} 
+ </>;}

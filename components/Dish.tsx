@@ -5,10 +5,10 @@ import {useCart,kes,Item} from '@/lib/Cart';
 export const BEST=['fried-chicken','loaded-chips','shawarma-chicken','burger-double'];
 const SAUCES=['Garlic','Chilli','BBQ','Cheese'];
 
-// Photos live in /public, named after the item id with spaces (e.g. "fried chicken.webp"). Emoji shows if a file is missing.
-export function Pic({id,alt,emoji,eager,sizes='(min-width:900px) 280px, 72vw'}:{id:string;alt:string;emoji:string;eager?:boolean;sizes?:string}){
+// Photos live in /public, named after the item id with spaces (e.g. "fried chicken.webp"). If a file is missing, a plain placeholder shows. The emoji prop is kept so older pages still compile, but it is not drawn.
+export function Pic({id,alt,eager,sizes='(min-width:900px) 280px, 72vw'}:{id:string;alt:string;emoji?:string;eager?:boolean;sizes?:string}){
  const [bad,setBad]=useState(false);
- return <div className="tx-pic">{bad?<span className="tx-emo" aria-hidden>{emoji}</span>:
+ return <div className="tx-pic">{!bad&&
   <Image src={`/${encodeURIComponent(id.replace(/-/g,' '))}.webp`} alt={alt} fill sizes={sizes} priority={eager} onError={()=>setBad(true)} style={{objectFit:'cover'}}/>}</div>;}
 
 export function Dish({it}:{it:Item}){
