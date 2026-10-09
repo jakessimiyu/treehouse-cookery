@@ -41,11 +41,10 @@ export default function CateringPage(){
    <li><b>Dietary needs</b><span>planned in advance</span></li>
   </ul>
 
-  <div className="ct-sec">
+    <div className="ct-sec">
    <div className="ct-h">
     <small>What we cater</small>
     <h2>Events we cater for</h2>
-    <p>Pick yours and we will point you to the right package.</p>
    </div>
    <OccasionExplorer/>
   </div>

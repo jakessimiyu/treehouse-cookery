@@ -1,15 +1,23 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import Image from 'next/image';
-import {useCart,kes,Item} from '@/lib/Cart';
+import {useCart,useCartMaybe,kes,Item} from '@/lib/Cart';
 export const BEST=['fried-chicken','loaded-chips','shawarma-chicken','burger-double'];
 const SAUCES=['Garlic','Chilli','BBQ','Cheese'];
 
-// Photos live in /public, named after the item id with spaces (e.g. "fried chicken.webp"). If a file is missing, a plain placeholder shows. The emoji prop is kept so older pages still compile, but it is not drawn.
+const stat=(id:string)=>`/${encodeURIComponent(id.replace(/-/g,' '))}.webp`;
+
+// Photos: an image uploaded from the admin wins; otherwise the file in /public named after the item id with spaces
+// (e.g. "fried chicken.webp"). If neither exists, a plain placeholder shows. The emoji prop is kept so older pages still compile, but it is not drawn.
 export function Pic({id,alt,eager,sizes='(min-width:900px) 280px, 72vw'}:{id:string;alt:string;emoji?:string;eager?:boolean;sizes?:string}){
- const [bad,setBad]=useState(false);
- return <div className="tx-pic">{!bad&&
-  <Image src={`/${encodeURIComponent(id.replace(/-/g,' '))}.webp`} alt={alt} fill sizes={sizes} priority={eager} onError={()=>setBad(true)} style={{objectFit:'cover'}}/>}</div>;}
+ const v=useCartMaybe()?.menu.find(m=>m.id===id)?.img||0;
+ const srcs=v>0?[`/api/img/${id}?v=${v}`,stat(id)]:[stat(id)];
+ const [failed,setFailed]=useState(0);
+ useEffect(()=>{setFailed(0)},[id,v]);
+ const src=srcs[failed];
+ return <div className="tx-pic">{src&&
+  <Image key={src} src={src} alt={alt} fill sizes={sizes} priority={eager} unoptimized={src.startsWith('/api/')}
+   onError={()=>setFailed(n=>n+1)} style={{objectFit:'cover'}}/>}</div>;}
 
 export function Dish({it}:{it:Item}){
  const {cart,add,dec}=useCart();const qty=cart[it.id]||0;

@@ -1,5 +1,5 @@
 import {q} from './db';
-import {s} from './store';
+import {listMenu} from './menu';
 import type {Item} from './store';
 
 // the sold-out list lives in the database so it survives restarts and is shared by every screen
@@ -27,8 +27,7 @@ export async function clearSoldOut(){
  await q(`delete from sold_out`);
 }
 
-// the full menu with today's availability applied
+// the customer-facing menu with today's availability applied (removed dishes are left out)
 export async function menuNow():Promise<Item[]>{
- const set=await soldOutIds();
- return s.menu.map(m=>({...m,soldOut:set.has(m.id)}));
+ return listMenu(false);
 }

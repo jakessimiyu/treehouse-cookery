@@ -7,5 +7,14 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
-  }
+  },
+  "r2_buckets": [
+    { "binding": "MENU_IMAGES", "bucket_name": "treehouse-menu" }
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "8454936b34804ac599a9cfe0c2474448"
+    }
+  ]
 }

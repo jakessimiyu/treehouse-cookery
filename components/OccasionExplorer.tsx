@@ -1,46 +1,29 @@
 'use client';
-import {useEffect,useRef,useState} from 'react';
 import {OCC} from '@/lib/occasions';
 
+const Arrow=()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>;
+
 export default function OccasionExplorer(){
- const [i,setI]=useState(0);const [auto,setAuto]=useState(true);const [still,setStill]=useState(true);
- const tabs=useRef<HTMLDivElement>(null);
- const o=OCC[i];
-
- useEffect(()=>{setStill(matchMedia('(prefers-reduced-motion: reduce)').matches)},[]);
- useEffect(()=>{ // slide the underline to the active tab and keep it centred in the row
-  const t=tabs.current;if(!t)return;
-  const place=()=>{const b=t.querySelectorAll('button')[i] as HTMLElement|undefined;if(!b)return;
-   t.style.setProperty('--x',b.offsetLeft+'px');t.style.setProperty('--w',b.offsetWidth+'px');
-   t.scrollTo({left:b.offsetLeft-(t.clientWidth-b.offsetWidth)/2,behavior:'smooth'})};
-  place();const ro=new ResizeObserver(place);ro.observe(t);return()=>ro.disconnect()},[i]);
-
- const pick=(n:number)=>{setI(n);setAuto(false)};
- const plan=()=>{ // pre-fill the quote form, then glide to it
-  setAuto(false);
+ const go=(o:(typeof OCC)[number])=>{
   window.dispatchEvent(new CustomEvent('catering:select-event',{detail:o.type}));
   window.dispatchEvent(new CustomEvent('catering:select-package',{detail:o.pkg}));
+  const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
   document.getElementById('quote')?.scrollIntoView({behavior:still?'auto':'smooth',block:'start'})};
-
- return <div className="ob" onFocusCapture={()=>setAuto(false)}>
-  {auto&&!still&&<i key={i} className="ob-prog" aria-hidden onAnimationEnd={()=>setI(n=>(n+1)%OCC.length)}/>}
-
-  <div className="ob-tabs" ref={tabs} role="group" aria-label="Choose an event type">
-   {OCC.map((x,n)=><button type="button" key={x.id} aria-pressed={i===n} className={i===n?'on':''} onClick={()=>pick(n)}>{x.title}</button>)}
-   <span className="ob-ind" aria-hidden/>
-  </div>
-
-  <div className="ob-stage" aria-live={auto?'off':'polite'}>
-   <div className="ob-body" key={o.id}>
-    <p className="ob-line">{o.line}</p>
-    <p className="ob-desc">{o.desc}</p>
-    <ul>{o.bring.map(b=><li key={b}>{b}</li>)}</ul>
-    <button type="button" className="ob-go" onClick={plan}>Plan this event →</button>
-   </div>
-
-   <div className="ob-panel" key={'p'+o.id} aria-hidden="true">
-    <span className="ob-type">{o.title}</span>
-   </div>
-  </div>
- </div>
-}
+ // mouse only: write cursor position / tilt to CSS variables (no re-render)
+ const move=(e:React.PointerEvent<HTMLUListElement>)=>{
+  if(e.pointerType!=='mouse')return;
+  const b=(e.target as Element).closest<HTMLElement>('.oc-b');if(!b)return;
+  const r=b.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  b.style.setProperty('--mx',x+'px');b.style.setProperty('--my',y+'px');
+  b.style.setProperty('--ry',((x/r.width-.5)*6).toFixed(2)+'deg');
+  b.style.setProperty('--rx',((.5-y/r.height)*6).toFixed(2)+'deg')};
+ const reset=(e:React.PointerEvent<HTMLButtonElement>)=>{
+  const s=e.currentTarget.style;s.setProperty('--rx','0deg');s.setProperty('--ry','0deg')};
+ return <ul className="oc" onPointerMove={move}>
+  {OCC.map((o,n)=><li key={o.id}>
+   <button type="button" className="oc-b" onClick={()=>go(o)} onPointerLeave={reset}>
+    <span className="oc-n" aria-hidden>{String(n+1).padStart(2,'0')}</span>
+    <span className="oc-a" aria-hidden><i><Arrow/></i><i><Arrow/></i></span>
+    <span className="oc-t">{o.title}</span>
+   </button></li>)}
+ </ul>;}
